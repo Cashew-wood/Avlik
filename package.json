@@ -1,0 +1,24 @@
+{
+  "name": "sep",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.0.6",
+    "codemirror-editor-vue3": "^2.1.7",
+    "element-plus": "^2.2.10",
+    "vue": "^3.2.37",
+    "vue-router": "^4.1.2"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^3.0.0",
+    "sass": "^1.53.0",
+    "unplugin-auto-import": "^0.10.0",
+    "unplugin-vue-components": "^0.21.1",
+    "vite": "^3.0.0"
+  }
+}
