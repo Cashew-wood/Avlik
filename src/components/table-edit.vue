@@ -1,6 +1,6 @@
 <template>
     <el-input ref="input" v-if="['number', 'text'].indexOf(type) > -1" :type="type" class="input" @keydown="keydown"
-        v-model="value" @blur="hide" size="small">
+        v-model="value" @blur="hide" size="small" :placeholder="placeholder" @contextmenu.prevent="setNull">
     </el-input>
     <el-date-picker ref="input" v-if="type == 'date'" v-model="value" class="input" format="YYYY-MM-DD"
         value-format="YYYY-MM-DD" type="date" placeholder="YYYY-MM-DD" @blur="hide" size="small" @keydown="keydown" />
@@ -11,8 +11,11 @@
     <el-time-picker ref="input" v-if="type == 'time'" v-model="value" class="input" arrow-control placeholder="hh:mm:ss"
         @blur="hide" size="small" @keydown="keydown" />
     <el-select ref="input" v-if="type == 'select'" v-model="value" class="input" filterable size="small" @blur="hide"
-        @visible-change="downlistVisibleChange" @keydown="keydown">
+        @visible-change="downlistVisibleChange" @keydown="keydown" @change="change">
         <el-option v-for="item in data" :key="item" :label="item" :value="item">
+        </el-option>
+        <el-option v-if="selectNew" class="define_new" :key="global.locale.define_new" :label="global.locale.define_new"
+            value="___$define_new$___" disabled @click="define_new">
         </el-option>
     </el-select>
     <div class="inline-block" ref="input" :tabindex="focusShow ? 1 : -1" v-if="type == 'checkbox'" @keydown="keydown"
@@ -27,7 +30,8 @@ export default {
         return {
             value: null,
             focusShow: false,
-            downlistVisible: false
+            downlistVisible: false,
+            placeholder: null
         }
     },
     props: {
@@ -35,11 +39,19 @@ export default {
         modelValue: [Number, String, Boolean],
         field: String,
         data: [Object, Array],
-        focus: Boolean
+        focus: Boolean,
+        autoFocus: {
+            type: Boolean,
+            default: true
+        },
+        selectNew: Boolean
     },
-    emits: ['duplicate', 'hide', 'update:modelValue', 'next'],
+    emits: ['duplicate', 'hide', 'update:modelValue', 'next', 'change', 'new'],
     watch: {
         value(n, o) {
+            if (n == null)
+                this.placeholder = '(Null)';
+            else this.placeholder = n;
             if (this.type == 'time') {
                 this.$emit('update:modelValue', this.timeFormat(n));
             } else {
@@ -67,15 +79,15 @@ export default {
             this.value = this.modelValue;
         }
         this.$nextTick(() => {
-            this.$refs.input && this.$refs.input.focus();
-            // if (this.type == 'checkbox')
-            //     this.focusStyle = 'is-focus';
+            if (this.autoFocus) {
+                this.$refs.input && this.$refs.input.focus();
+            }
         })
 
     },
     methods: {
         hide(e) {
-            console.log('hide',this.downlistVisible)
+            console.log('hide', this.downlistVisible)
             if (!this.downlistVisible) {
                 this.focusShow = false;
                 this.$emit('hide')
@@ -89,6 +101,17 @@ export default {
         },
         downlistVisibleChange(val) {
             this.downlistVisible = val;
+        },
+        setNull() {
+            this.value = null;
+            console.log('set null')
+        },
+        change(n) {
+            this.$emit('change', n)
+        },
+        define_new() {
+            this.$refs.input.dropMenuVisible = false;
+            this.$emit('new')
         }
     }
 }
@@ -108,5 +131,10 @@ export default {
 
 .inline-block:focus {
     outline: none;
+}
+
+.define_new.el-select-dropdown__item.is-disabled {
+    cursor: pointer;
+    color: var(--el-color-primary-light-5)
 }
 </style>

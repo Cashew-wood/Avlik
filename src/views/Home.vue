@@ -94,7 +94,8 @@
               </div>
             </div>
             <div v-if="item.type == 2" class="new_table">
-              <NewTable :item="item" :addRow="addNewTableRow"></NewTable>
+              <NewTable :item="item" :addRow="addNewTableRow" :generateSQL="generateTableSQL" :dbc="dbc[item.dcIndex]">
+              </NewTable>
             </div>
             <div class="table-opt-tool" v-if="(item.dataType == 1 && item.data) || item.type == 0">
               <div class="to-left">
@@ -184,20 +185,7 @@
   </div>
 </template>
 <script>
-const DBWarp = function (db, id) {
-  return new Proxy({}, {
-    get: (target, field) => {
-      if (!native[db][field]) return null;
-      return function () {
-        let args = [id]
-        for (let v of arguments) {
-          args.push(v)
-        }
-        return native[db][field].apply(null, args);
-      }
-    }
-  })
-}
+
 let treeId = 0;
 import TitleBar from '../components/title-bar.vue';
 
@@ -221,7 +209,8 @@ import 'codemirror/addon/fold/comment-fold'
 import DataTable from '../components/data-table.vue';
 import TableEdit from '../components/table-edit.vue';
 import NewTable from '../components/new-table.vue';
-
+import databaseTemplate from '../assets/js/database-template';
+import databaseConnecton from '../assets/js/database-connecton';
 export default {
   data() {
     return {
@@ -284,79 +273,7 @@ export default {
         }]
       }],
       dbc: [],
-      db: [{
-        name: 'MySQL',
-        icon: 'icon-mysql',
-        alias: 'mysql',
-        data: {
-          name: {
-            _name: '${connection_name}',
-          },
-          host: {
-            _name: '${host}',
-            value: 'localhost'
-          },
-          port: {
-            _name: '${port}',
-            value: '3306',
-            type: 'number'
-          },
-          user: {
-            _name: '${user_name}',
-            value: 'root'
-          },
-          pwd: {
-            _name: '${password}',
-            type: 'password'
-          }
-        },
-        dataValidate: {
-          name: [this.validate()],
-          host: [this.validate()],
-          port: [this.validate()],
-          user: [this.validate()],
-          pwd: [this.validate()],
-        },
-        dataType: {
-          binary: null,
-          blob: null,
-          longblob: null,
-          mediumblob: null,
-          mediumint: null,
-          tinyblob: null,
-          bigint: 'number',
-          bit: 'number',
-          char: 'text',
-          date: 'date',
-          datetime: 'datetime',
-          decimal: 'number',
-          double: 'number',
-          float: 'number',
-          smallint: 'number',
-          tinyint: 'number',
-          enum: 'select',
-          geometry: 'text',
-          geometrycollection: 'text',
-          int: 'number',
-          integer: 'number',
-          linestring: 'text',
-          longtext: 'text',
-          mediumtext: 'text',
-          multilinestring: 'text',
-          multipoint: 'text',
-          multipolygon: 'text',
-          point: 'text',
-          polygon: 'text',
-          set: 'select',
-          text: 'text',
-          tinytext: 'text',
-          varbinary: 'text',
-          varchar: 'text',
-          time: 'time',
-          timestamp: 'timestamp',
-          year: 'number'
-        }
-      }],
+      db: [],
       dbcHeight: 0,
       connectionDialog: {
         id: null,
@@ -391,8 +308,10 @@ export default {
     } else {
       window.addEventListener('native', this.init)
     }
+    this.db = databaseTemplate;
     this.setDisplayLocale('en');
     this.loadStorage();
+    Object.assign(this, databaseConnecton);
   },
   methods: {
     setLocale(obj) {
@@ -488,35 +407,6 @@ export default {
       connection = JSON.parse(connection);
       for (let dc of connection) {
         this.addConnectionByInfo(dc.info, dc.type);
-      }
-    },
-    async getConnection(dbc, db) {
-      return new DBWarp(this.db[dbc.dbType].alias, await native[this.db[this.connectionType].alias].connection(this.getConnectionString({ ...dbc.info, database: db })));
-    },
-    async use(dbc, db, body) {
-      if (!body) {
-        body = db;
-        db = null;
-      }
-      let dc = await this.getConnection(dbc, db);
-      let r = body(dc)
-      if (r && r.then) {
-        await r;
-        dc.close();
-      }
-    },
-    getConnectionString(connectionInfo) {
-      return `Server=${connectionInfo.host};Port=${connectionInfo.port}${connectionInfo.database ? ';Database=' + connectionInfo.database : ''};Uid=${connectionInfo.user};Pwd=${connectionInfo.pwd};`
-    },
-    validate() {
-      return {
-        trigger: 'blur', validator: (rule, value, callback) => {
-          if (!value) {
-            callback(new Error(this.db[this.connectionType].data[rule.field].name + ' ' + this.global.locale.required))
-            return false;
-          }
-          return true;
-        }
       }
     },
     getDBCByNode(node) {
@@ -702,24 +592,31 @@ export default {
       tab.columns = await this.getTableColumns(parent, data);
     },
     getTableColumns(db, table) {
-      console.log('===========', db, table)
+      let dbc = this.dbc[this.treeNodeFindById(db.id)[0]];
       return new Promise((resolve, reject) => {
-        this.use(this.dbc[this.treeNodeFindById(db.id)[0]], async (dc) => {
+        this.use(dbc, async (dc) => {
           try {
             let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA='${db.label}' and TABLE_NAME='${table.label}'`);
             let columns = []
             for (let row of tableCoumns) {
               let k = row.COLUMN_TYPE.indexOf('(');
+              let value = k > -1 ? parseInt(row.COLUMN_TYPE.substring(k + 1, row.COLUMN_TYPE.length - 1)) : null;
+              let len = null;
+              if (this.db[dbc.dbType].dataType[row.DATA_TYPE].jsType == 'number') {
+                len = value;
+                value = null;
+              }
               columns.push({
                 name: row.COLUMN_NAME,
                 type: row.DATA_TYPE,
-                len: k > -1 ? parseInt(row.COLUMN_TYPE.substring(k + 1, row.COLUMN_TYPE.length - 1)) : -1,
+                len,
                 characterSet: row.CHARACTER_SET_NAME,
                 collation: row.CHARACTER_SET_NAME,
                 comment: row.COLUMN_COMMENT,
                 defaultValue: row.COLUMN_DEFAULT,
                 isNullable: row.IS_NULLABLE == 'YES',
-                key: row.COLUMN_KEY
+                key: row.COLUMN_KEY,
+                value
               })
             }
             resolve(columns);
@@ -893,7 +790,7 @@ export default {
         tab.explain = sql;
         if (execute) {
           tab.dataType = 0;
-          let cn = await this.getConnection(dc, db.label);
+          let cn = await this.getConnection(dc.dbType, dc.info, db.label);
           tab.db = cn;
           tab.runId = await cn.executeAsync(sql, null, (count) => {
             this.sqlRunEnd(tab);
@@ -904,7 +801,7 @@ export default {
           });
         } else {
           tab.dataType = 1;
-          let cn = await this.getConnection(dc, db.label);
+          let cn = await this.getConnection(dc.dbType, dc.info, db.label);
           tab.db = cn;
           let match = /^select\s+\*\s+from\s+(\w+).*$/i.exec(sql)
           if (match && match.length) {
@@ -918,21 +815,17 @@ export default {
             });
             tab.columns = await this.getTableColumns(db, { label: tab.table });
           } else {
-            console.log('select ')
             tab.runId = await cn.selectAsync(sql, null, (rs) => {
-              console.log('select response ')
               this.sqlRunEnd(tab);
               let columns = this.getRow0Columns(rs);
               rs.splice(0, 1);
               tab.data = this.setDuplicateData(rs);
               tab.columns = columns
             }, (e) => {
-              console.log('select response ', e)
               this.sqlRunEnd(tab, e);
             });
           }
         }
-        console.log('start time', tab.timeId)
       } catch (e) {
         this.setSqlErrorResult(tab, e);
       }
@@ -949,7 +842,6 @@ export default {
       tab.db.close();
       tab.run = false;
       tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
-      console.log('stop time', tab.timeId)
       clearInterval(tab.timeId);
       if (e) {
         this.setSqlErrorResult(tab, e);
@@ -961,7 +853,6 @@ export default {
         message: e,
         type: 'error'
       })
-      console.log('open error panel', e)
       tab.data = e;
       tab.dataType = 0;
     },
@@ -973,7 +864,6 @@ export default {
       return columns;
     },
     async stopSQL(tab) {
-      console.log('cancel', tab)
       try {
         await tab.db.cancel(tab.runId);
       } catch { }
@@ -1012,7 +902,7 @@ export default {
         if (column.key == 'PRI') {
           primaryColumns.push(column.name);
         }
-        columnInfos[column.name] = { jsType: this.db[this.dbc[tab.dcIndex].dbType].dataType[column.type], ...column };
+        columnInfos[column.name] = { jsType: this.db[this.dbc[tab.dcIndex].dbType].dataType[column.type].jsType, ...column };
       }
       for (let row of tab.data) {
         let change = false;
@@ -1081,7 +971,7 @@ export default {
     async saveResult(tab) {
       let dc = this.dbc[tab.dcIndex];
       tab.wait = true;
-      let cn = await this.getConnection(dc, dc.items[tab.dbIndex].label);
+      let cn = await this.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
       tab.db = cn;
       tab.runId = await cn.executeAsync(tab.explain, null, () => {
         cn.close();
@@ -1116,7 +1006,7 @@ export default {
     async refreshResult(tab) {
       let dc = this.dbc[tab.dcIndex];
       tab.wait = true;
-      let cn = await this.getConnection(dc, dc.items[tab.dbIndex].label);
+      let cn = await this.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
       tab.explain = tab.sql;
       tab.runId = cn.selectAsync(tab.sql, null, (rs) => {
         cn.close();
@@ -1147,7 +1037,7 @@ export default {
       }
     },
     addTable(node) {
-
+      let path = this.treeNodeFindById(node.data.id);
       this.tabs.push({
         id: Date.now(),
         type: 2,
@@ -1160,7 +1050,9 @@ export default {
         { display: 'key', name: 'key', width: 80, type: 'checkbox' },
         { display: 'comment', name: 'comment', width: 200, type: 'text' },
         ],
-        data: []
+        data: [],
+        dcIndex: path[0],
+        dbIndex: path[1]
       })
       let tab = this.tabs[this.tabs.length - 1];
       this.addNewTableRow(tab);
@@ -1173,8 +1065,18 @@ export default {
           emptyRow[column.name] = column.default || false;
         } else
           emptyRow[column.name] = null;
+        if (column.type == 'select') {
+          emptyRow.selectData = [];
+        }
       }
       tab.data.push(emptyRow)
+    },
+    generateTableSQL(item) {
+      let sql = 'create table `' + item.table + '`(';
+      for (let row of item.data) {
+        sql += '`' + row.name + '` ' + row.type + '(' + row.length + ') ';
+      }
+
     }
   }
 }

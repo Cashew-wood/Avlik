@@ -10,7 +10,7 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.0.6",
     "codemirror-editor-vue3": "^2.1.7",
-    "element-plus": "^2.2.10",
+    "element-plus": "^2.2.11",
     "vue": "^3.2.37",
     "vue-router": "^4.1.2"
   },

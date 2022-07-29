@@ -5,9 +5,10 @@
         <el-table-column v-for="(column, k) in item.columns" :kye="k" :prop="column.name" :label="column.name"
             :width="130" align="center">
             <template #default="scope">
-                <TableEdit v-if="scope.row[hiddenFieldHasEdit + column.name] && dbTemplate.dataType[column.type]"
+                <TableEdit v-if="scope.row[hiddenFieldHasEdit + column.name] && dbTemplate.dataType[column.type].jsType"
                     v-model="scope.row[column.name]" :type="dbTemplate.dataType[column.type]"
-                    @hide="tableEditBoxHide(item, scope.row, column.name)" @next="editBoxNextFocus">
+                    :data="getColumnData(column)" @hide="tableEditBoxHide(item, scope.row, column.name)"
+                    @next="editBoxNextFocus">
                 </TableEdit>
                 <span class="defaultText" :class="{ 'null': scope.row[column.name] == null }" v-else>{{
                         dataFormat(dbTemplate.dataType[column.type],
@@ -33,6 +34,9 @@ export default {
         generateSQL: Function,
         dbTemplate: Object,
         addRow: Function
+    },
+    mounted() {
+
     },
     methods: {
         tableEditBoxHide(item, row, columnName) {
@@ -95,11 +99,20 @@ export default {
                 this.editFieldPosition = { row: this.item.data[row], column: find }
             }, 10);
         },
-        stopTab(e){
-            if(e.code=='Tab'){
+        stopTab(e) {
+            if (e.code == 'Tab') {
                 e.stopPropagation();
                 e.preventDefault();
             }
+        },
+        getColumnData(column) {
+            if (!column.value) return null;
+            let values = column.value.split(',');
+            let items = [];
+            for (let value of values) {
+                items.push(value.substring(1, value.length - 1))
+            }
+            return items;
         }
     },
     components: { TableEdit }
