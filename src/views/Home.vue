@@ -269,7 +269,7 @@ export default {
         }, {
           _name: '${about}',
           divided: true,
-          invoke: () => { this.$alert('Vserion:.0.0.0.1', 'Prompt') }
+          invoke: () => { this.$alert('Vserion:.0.0.0.1', this.global.locale.prompt) }
         }]
       }],
       dbc: [],
