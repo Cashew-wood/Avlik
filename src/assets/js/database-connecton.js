@@ -25,11 +25,53 @@ export default {
         let dc = await this.getConnection(dbc.dbType, dbc.info, dbName);
         let r = body(dc)
         if (r && r.then) {
-            await r;
+            let result = await r;
             dc.close();
+            return result;
         }
     },
     getConnectionString(connectionInfo) {
         return `Server=${connectionInfo.host};Port=${connectionInfo.port}${connectionInfo.database ? ';Database=' + connectionInfo.database : ''};Uid=${connectionInfo.user};Pwd=${connectionInfo.pwd};`
     },
+    getTableList(dbc, dbName) {
+        return this.use(dbc, dbName, async (dc) => {
+            let tables = await dc.select('show tables');
+            let array = [];
+            for (let obj of tables) {
+                for (let name in obj) {
+                    array.push(obj[name]);
+                    break;
+                }
+            }
+            return array;
+        })
+    },
+    getTableColumns(dbc, dbName, tableName) {
+        return this.use(dbc, async (dc) => {
+            let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA='${dbName}' and TABLE_NAME='${tableName}'`);
+            let columns = []
+            for (let row of tableCoumns) {
+                let k = row.COLUMN_TYPE.indexOf('(');
+                let value = k > -1 ? row.COLUMN_TYPE.substring(k + 1, row.COLUMN_TYPE.length - 1) : null;
+                let len = null;
+                if (databaseTemplate[dbc.dbType].dataType[row.DATA_TYPE].jsType=='number') {
+                    len = value;
+                    value = null;
+                }
+                columns.push({
+                    name: row.COLUMN_NAME,
+                    type: row.DATA_TYPE,
+                    len,
+                    characterSet: row.CHARACTER_SET_NAME,
+                    collation: row.CHARACTER_SET_NAME,
+                    comment: row.COLUMN_COMMENT,
+                    defaultValue: row.COLUMN_DEFAULT,
+                    isNullable: row.IS_NULLABLE == 'YES',
+                    key: row.COLUMN_KEY,
+                    value
+                })
+            }
+            return columns
+        });
+    }
 }

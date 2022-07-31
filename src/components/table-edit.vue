@@ -12,10 +12,14 @@
         @blur="hide" size="small" @keydown="keydown" />
     <el-select ref="input" v-if="type == 'select'" v-model="value" class="input" filterable size="small" @blur="hide"
         @visible-change="downlistVisibleChange" @keydown="keydown" @change="change">
-        <el-option v-for="item in data" :key="item" :label="item" :value="item">
-        </el-option>
+        <el-option v-for="item in data" :key="item" :label="item" :value="item"></el-option>
         <el-option v-if="selectNew" class="define_new" :key="global.locale.define_new" :label="global.locale.define_new"
-            value="___$define_new$___" disabled @click="define_new">
+            disabled @click="define_new">
+        </el-option>
+    </el-select>
+    <el-select ref="input" v-if="type == 'select-multiple'" multiple v-model="value" class="input" filterable
+        size="small" @blur="hide" @visible-change="downlistVisibleChange" @keydown="keydown" @change="change">
+        <el-option v-for="item in data" :key="item" :label="item" :value="item">
         </el-option>
     </el-select>
     <div class="inline-block" ref="input" :tabindex="focusShow ? 1 : -1" v-if="type == 'checkbox'" @keydown="keydown"
@@ -31,12 +35,13 @@ export default {
             value: null,
             focusShow: false,
             downlistVisible: false,
-            placeholder: null
+            placeholder: null,
+            set: false
         }
     },
     props: {
         type: String,
-        modelValue: [Number, String, Boolean],
+        modelValue: [Number, String, Boolean, Array],
         field: String,
         data: [Object, Array],
         focus: Boolean,
@@ -44,11 +49,13 @@ export default {
             type: Boolean,
             default: true
         },
-        selectNew: Boolean
+        selectNew: Boolean,
+        row: Object
     },
     emits: ['duplicate', 'hide', 'update:modelValue', 'next', 'change', 'new'],
     watch: {
         value(n, o) {
+            if (!this.set) return;
             if (n == null)
                 this.placeholder = '(Null)';
             else this.placeholder = n;
@@ -65,6 +72,10 @@ export default {
                     this.$refs.input.focus();
                 })
             }
+        },
+        modelValue(n) {
+            this.value = n;
+            console.log('change', n, this.row)
         }
     },
     mounted() {
@@ -78,6 +89,7 @@ export default {
         } else {
             this.value = this.modelValue;
         }
+        this.set = true;
         this.$nextTick(() => {
             if (this.autoFocus) {
                 this.$refs.input && this.$refs.input.focus();
@@ -87,7 +99,6 @@ export default {
     },
     methods: {
         hide(e) {
-            console.log('hide', this.downlistVisible)
             if (!this.downlistVisible) {
                 this.focusShow = false;
                 this.$emit('hide')
@@ -95,7 +106,6 @@ export default {
         },
         keydown(e) {
             if (e.code == 'Tab') {
-                console.log(this.focusShow)
                 this.$emit('next')
             }
         },
@@ -104,7 +114,6 @@ export default {
         },
         setNull() {
             this.value = null;
-            console.log('set null')
         },
         change(n) {
             this.$emit('change', n)

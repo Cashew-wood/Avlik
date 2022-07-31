@@ -5,13 +5,14 @@
         <el-table-column v-for="(column, k) in item.columns" :kye="k" :prop="column.name" :label="column.name"
             :width="130" align="center">
             <template #default="scope">
-                <TableEdit v-if="scope.row[hiddenFieldHasEdit + column.name] && dbTemplate.dataType[column.type].jsType"
-                    v-model="scope.row[column.name]" :type="dbTemplate.dataType[column.type]"
+                <TableEdit
+                    v-if="scope.row[hiddenFieldHasEdit] == column.name && dbTemplate.dataType[column.type] && dbTemplate.dataType[column.type].jsType"
+                    v-model="scope.row[column.name]" :type="dbTemplate.dataType[column.type].jsType"
                     :data="getColumnData(column)" @hide="tableEditBoxHide(item, scope.row, column.name)"
                     @next="editBoxNextFocus">
                 </TableEdit>
                 <span class="defaultText" :class="{ 'null': scope.row[column.name] == null }" v-else>{{
-                        dataFormat(dbTemplate.dataType[column.type],
+                        dataFormat(dbTemplate.dataType[column.type] && dbTemplate.dataType[column.type].jsType,
                             scope.row[column.name])
                 }}</span>
             </template>
@@ -23,7 +24,7 @@ import TableEdit from './table-edit.vue';
 export default {
     data() {
         return {
-            hiddenFieldHasEdit: "__$i",
+            hiddenFieldHasEdit: "__$$edit$",
             hiddenFieldPrefix: "__$",
             hiddenFieldState: "__$$state$",
             editFieldPosition: null
@@ -41,7 +42,8 @@ export default {
     methods: {
         tableEditBoxHide(item, row, columnName) {
             console.log('hide', columnName)
-            row[this.hiddenFieldHasEdit + columnName] = false;
+            if (row[this.hiddenFieldHasEdit] == columnName)
+                row[this.hiddenFieldHasEdit] = null;
             let diff = row[this.hiddenFieldPrefix + columnName] != row[columnName];
             item.dataChange = item.dataChange || diff;
             if (diff) {
@@ -72,7 +74,7 @@ export default {
         },
         cellClick(row, column, dom) {
             console.log(row, column)
-            row[this.hiddenFieldHasEdit + column.label] = true;
+            row[this.hiddenFieldHasEdit] = column.label;
             this.editFieldPosition = { row, column: column.label }
         },
         editBoxNextFocus() {
@@ -95,7 +97,7 @@ export default {
                 if (row == this.item.data.length) {
                     this.addRow(this.item);
                 }
-                this.item.data[row][this.hiddenFieldHasEdit + find] = true;
+                this.item.data[row][this.hiddenFieldHasEdit] = find;
                 this.editFieldPosition = { row: this.item.data[row], column: find }
             }, 10);
         },
@@ -107,6 +109,7 @@ export default {
         },
         getColumnData(column) {
             if (!column.value) return null;
+            console.log(column.value)
             let values = column.value.split(',');
             let items = [];
             for (let value of values) {

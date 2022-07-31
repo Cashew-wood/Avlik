@@ -93,15 +93,15 @@
                 </div>
               </div>
             </div>
-            <div v-if="item.type == 2" class="new_table">
-              <NewTable :item="item" :addRow="addNewTableRow" :generateSQL="generateTableSQL" :dbc="dbc[item.dcIndex]">
-              </NewTable>
-            </div>
+            <NewTable v-if="item.type == 2" :item="item" :generateSQL="generateTableSQL" :dbc="dbc[item.dcIndex]">
+            </NewTable>
             <div class="table-opt-tool" v-if="(item.dataType == 1 && item.data) || item.type == 0">
               <div class="to-left">
-                <span class="icon iconfont icon-zengjia" @click="addRow(item)"></span>
-                <span :class="{ 'disable': item.selected == null }" class="icon iconfont icon-jian"
-                  @click="item.selected != null && removeRow(item)"></span>
+                <span class="icon iconfont icon-zengjia" :class="{ 'disable': item.table == null }"
+                  @click="item.table != null && addRow(item)"></span>
+                <span :class="{ 'disable': item.selected == null || item.table == null }"
+                  class="icon iconfont icon-jian"
+                  @click="item.selected != null && item.table != null && removeRow(item)"></span>
                 <span :class="{ 'disable': !item.dataChange }" class="icon iconfont icon-duihao"
                   @click="item.dataChange && saveResult(item)"></span>
                 <span :class="{ 'disable': !item.dataChange }" class="icon iconfont icon-cha"
@@ -312,6 +312,12 @@ export default {
     this.setDisplayLocale('en');
     this.loadStorage();
     Object.assign(this, databaseConnecton);
+    for (let template of this.db) {
+      for (let key in template.dataValidate) {
+        template.dataValidate[key] = [this.validate(template)];
+      }
+    }
+
   },
   methods: {
     setLocale(obj) {
@@ -356,10 +362,18 @@ export default {
         this.refreshCN(node)
       } else if (node.level == 2) {
         this.refreshTable(node);
-      } else if (node.level == 3) {
-        //console.log(arguments)
       }
-
+    },
+    validate(template) {
+      return {
+        trigger: 'blur', validator: (rule, value, callback) => {
+          if (!value) {
+            callback(new Error(template.data[rule.field].name + ' ' + this.global.locale.required))
+            return false;
+          }
+          return true;
+        }
+      }
     },
     openConnectionDialog(i) {
       let current = this.db[i];
@@ -525,22 +539,17 @@ export default {
       this.getTable(this.getDBCByNode(node), node.data);
     },
     async getTable(dbc, dbData) {
-      await this.use(dbc, dbData.label, async (db) => {
-        let tables = await db.select('show tables');
-        for (let obj of tables) {
-          for (let name in obj) {
-            if (dbData.items.findIndex(e => e.label == obj[name]) == -1) {
-              dbData.items.push({
-                id: treeId++,
-                label: obj[name],
-                items: []
-              })
-            }
-            break;
-          }
+      let list = await this.getTableList(dbc, dbData.label);
+      for (let s of list) {
+        if (dbData.items.findIndex(e => e.label == s) == -1) {
+          dbData.items.push({
+            id: treeId++,
+            label: s,
+            items: []
+          })
         }
-        this.$refs.tree.setData(this.dbc);
-      });
+      }
+      this.$refs.tree.setData(this.dbc);
     },
     async deleteDB(node) {
       console.log(this.global.locale)
@@ -589,42 +598,11 @@ export default {
       this.tabIndex = this.tabs.length - 1
     },
     async loadTableColumn(tab, data, parent) {
-      tab.columns = await this.getTableColumns(parent, data);
+      tab.columns = await this.getTableColumnsByDB(parent, data);
     },
-    getTableColumns(db, table) {
+    getTableColumnsByDB(db, table) {
       let dbc = this.dbc[this.treeNodeFindById(db.id)[0]];
-      return new Promise((resolve, reject) => {
-        this.use(dbc, async (dc) => {
-          try {
-            let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA='${db.label}' and TABLE_NAME='${table.label}'`);
-            let columns = []
-            for (let row of tableCoumns) {
-              let k = row.COLUMN_TYPE.indexOf('(');
-              let value = k > -1 ? parseInt(row.COLUMN_TYPE.substring(k + 1, row.COLUMN_TYPE.length - 1)) : null;
-              let len = null;
-              if (this.db[dbc.dbType].dataType[row.DATA_TYPE].jsType == 'number') {
-                len = value;
-                value = null;
-              }
-              columns.push({
-                name: row.COLUMN_NAME,
-                type: row.DATA_TYPE,
-                len,
-                characterSet: row.CHARACTER_SET_NAME,
-                collation: row.CHARACTER_SET_NAME,
-                comment: row.COLUMN_COMMENT,
-                defaultValue: row.COLUMN_DEFAULT,
-                isNullable: row.IS_NULLABLE == 'YES',
-                key: row.COLUMN_KEY,
-                value
-              })
-            }
-            resolve(columns);
-          } catch (e) {
-            reject(e);
-          }
-        });
-      })
+      return this.getTableColumns(dbc, db.label, table.label);
     },
     async loadTableData(tab, table, dbName) {
       tab.dataChange = false;
@@ -788,6 +766,7 @@ export default {
         tab.run = true;
         tab.sql = sql;
         tab.explain = sql;
+        tab.table = null;
         if (execute) {
           tab.dataType = 0;
           let cn = await this.getConnection(dc.dbType, dc.info, db.label);
@@ -813,7 +792,7 @@ export default {
             }, (e) => {
               this.sqlRunEnd(tab, e);
             });
-            tab.columns = await this.getTableColumns(db, { label: tab.table });
+            tab.columns = await this.getTableColumnsByDB(db, { label: tab.table });
           } else {
             tab.runId = await cn.selectAsync(sql, null, (rs) => {
               this.sqlRunEnd(tab);
@@ -873,6 +852,9 @@ export default {
     },
     tabClose(e) {
       this.tabs.splice(e, 1);
+      if (e <= this.tabIndex) {
+        this.tabIndex = this.tabIndex - 1;
+      }
     },
     addRow(tab) {
       let row = {};
@@ -1042,41 +1024,203 @@ export default {
         id: Date.now(),
         type: 2,
         name: this.global.locale.new_table,
-        columns: [{ display: 'column_name', name: 'name', width: 150, type: 'text' },
-        { display: 'data_type', name: 'type', width: 100, type: 'select', value: Object.keys(this.db[this.getDBCByNode(node).dbType].dataType) },
-        { display: 'length', name: 'length', width: 80, type: 'number' },
-        { display: 'decimals', name: 'decimals', width: 80, type: 'number' },
-        { display: 'not_null', name: 'notNull', width: 80, type: 'checkbox' },
-        { display: 'key', name: 'key', width: 80, type: 'checkbox' },
-        { display: 'comment', name: 'comment', width: 200, type: 'text' },
-        ],
-        data: [],
+        subtabs: [{
+          name: 'fields',
+          columns: [{ name: 'name', width: 150, type: 'text' },
+          { name: 'data_type', width: 100, type: 'select', value: Object.keys(this.db[this.getDBCByNode(node).dbType].dataType) },
+          { name: 'length', width: 80, type: 'number' },
+          { name: 'decimals', width: 80, type: 'number' },
+          { name: 'not_null', width: 80, type: 'checkbox' },
+          { name: 'key', width: 80, type: 'checkbox' },
+          { name: 'comment', width: 200, type: 'text' },
+          ],
+          data: []
+        }, {
+          name: 'indexs',
+          columns: [{ name: 'name', width: 150, type: 'text', },
+          {
+            name: 'fields', width: 250, type: 'select-multiple', valueInvoke: (tab, sub) => {
+              return tab.subtabs[0].data.filter(e => e.name != null).map(e => e.name);
+            }
+          },
+          { name: 'index_type', width: 120, type: 'select', value: ['FULLTEXT', 'NORMAL', 'SPATIAL', 'UNIQUE'] },
+          { name: 'index_method', width: 120, type: 'select', value: ['BTREE', 'HASH'] },
+          { name: 'key_block_size', width: 120, type: 'number' },
+          { name: 'comment', width: 200, type: 'text' }],
+          data: [],
+        }, {
+          name: 'foreign_keys',
+          columns: [{ name: 'name', width: 100, type: 'text', },
+          {
+            name: 'fields', width: 250, type: 'select-multiple', valueInvoke: (tab, sub) => {
+              return tab.subtabs[0].data.filter(e => e.name != null).map(e => e.name);
+            }
+          },
+          {
+            name: 'referenced_schema', width: 130, type: 'select', valueInvoke: (tab, sub) => {
+              return this.dbc[tab.dcIndex].items.map(e => e.label)
+            }, onChange: async (item, subtab, row, value) => {
+              subtab.columns[subtab.columns.findIndex(e => e.name == 'referenced_table')].value = await this.getTableList(this.dbc[item.dcIndex], value)
+            }
+          },
+          {
+            name: 'referenced_table', width: 130, type: 'select', onChange: async (item, subtab, row, value) => {
+              subtab.columns[subtab.columns.findIndex(e => e.name == 'referenced_fields')].value = (await this.getTableColumns(this.dbc[item.dcIndex],
+                row.referenced_schema, value)).map(e => e.name);
+            }
+          },
+          { name: 'referenced_fields', width: 250, type: 'select-multiple' },
+          { name: 'on_update', width: 100, type: 'select', value: ['CASCADE', 'NO ACTION', 'RESTRICT', 'SET NULL'] },
+          { name: 'on_delete', width: 100, type: 'select', value: ['CASCADE', 'NO ACTION', 'RESTRICT', 'SET NULL'] }],
+          data: [],
+        }, {
+          name: 'triggers',
+          columns: [{ name: 'name', width: 100, type: 'text', },
+          {
+            name: 'type', width: 100, type: 'select', value: ['AFTER', 'BEFORE']
+          },
+          {
+            name: 'action', width: 100, type: 'select', value: ['INSERT', 'UPDATE', 'DELETE']
+          }],
+          data: [],
+          panel: {
+            direction: 'top',
+            full: 'true',
+            form: [{
+              name: 'define', type: 'code', visible: (item, sub, selectRow) => true
+            }]
+          }
+        }],
+        table: this.global.locale.unnamed,
         dcIndex: path[0],
         dbIndex: path[1]
       })
-      let tab = this.tabs[this.tabs.length - 1];
-      this.addNewTableRow(tab);
-      console.log(tab)
-    },
-    addNewTableRow(tab) {
-      let emptyRow = {};
-      for (let column of tab.columns) {
-        if (column.type == 'checkbox') {
-          emptyRow[column.name] = column.default || false;
-        } else
-          emptyRow[column.name] = null;
-        if (column.type == 'select') {
-          emptyRow.selectData = [];
-        }
-      }
-      tab.data.push(emptyRow)
+      this.tabIndex = this.tabs.length - 1;
     },
     generateTableSQL(item) {
       let sql = 'create table `' + item.table + '`(';
-      for (let row of item.data) {
-        sql += '`' + row.name + '` ' + row.type + '(' + row.length + ') ';
+      let priKeys = [];
+      for (let row of item.subtabs[0].data) {
+        if (row.name == null || row.data_type == null) continue;
+        sql += '\n`' + row.name + '` ' + row.data_type;
+        if (this.db[this.dbc[item.dcIndex].dbType].dataType[row.data_type].jsType == 'text' && row.length) {
+          sql += '(' + row.length + ')';
+        } else if (row.length && this.db[this.dbc[item.dcIndex].dbType].dataType[row.data_type].jsType == 'number') {
+          sql += '(' + row.length;
+          if (row.decimals) {
+            sql += ',' + row.decimals;
+          }
+          sql += ')'
+        }
+        sql += ' ';
+        if (row.selectData) {
+          sql += '(' + row.selectData + ') ';
+        }
+        if (row.character) {
+          sql += 'CHARACTER SET ' + row.character + ' ';
+        }
+        if (row.collation) {
+          sql += 'COLLATE ' + row.collation + ' ';
+        }
+        if (row.unsigned) {
+          sql += 'UNSIGNED '
+        }
+        if (row.not_null) {
+          sql += 'NOT ';
+        }
+        sql += 'NULL';
+        if (row.default_value != null) {
+          sql += ` DEFAULT ${row.default_value}`;
+        }
+        if (row.auto_increment) {
+          sql += ' AUTO_INCREMENT'
+        }
+        if (row.update_current_timestamp) {
+          sql += ` ON UPDATE CURRENT_TIMESTAMP`
+        }
+        if (row.comment) {
+          sql += ` COMMENT '${row.comment}'`
+        }
+        sql += ','
+        if (row.key) {
+          priKeys.push(row);
+        }
       }
-
+      if (priKeys.length) {
+        sql += '\nPRIMARY KEY (';
+        for (let row of priKeys) {
+          sql += '`' + row.name;
+          if (row.key_length) {
+            sql += '`(' + row.key_length + '),';
+          } else {
+            sql += '`,';
+          }
+        }
+        sql = sql.substring(0, sql.length - 1) + '),';
+      }
+      if (item.subtabs[1] && item.subtabs[1].data && item.subtabs[1].data.length) {
+        for (let row of item.subtabs[1].data) {
+          if (row.name == null) continue;
+          sql += '\n';
+          if (row.index_type != 'NORMAL') {
+            sql += row.index_type + ' ';
+          }
+          sql += `INDEX \`${row.name}\`(`
+          for (let field of row.fields) {
+            sql += '`' + field + '`,'
+          }
+          if (row.fields.length > 0) {
+            sql = sql.substring(0, sql.length - 1);
+          }
+          sql += ')';
+          if (row.index_method) {
+            sql += ' USING ' + row.index_method;
+          }
+          if (row.comment) {
+            sql += ` COMMENT '${row.comment}'`;
+          }
+          sql += ',';
+        }
+      }
+      if (item.subtabs[2] && item.subtabs[2].data && item.subtabs[2].data.length) {
+        for (let row of item.subtabs[2].data) {
+          if (row.name == null) continue;
+          sql += `\nCONSTRAINT ${row.name} FOREIGN KEY (`
+          for (let field of row.fields) {
+            sql += '`' + field + '`,'
+          }
+          if (row.fields.length > 0) {
+            sql = sql.substring(0, sql.length - 1);
+          }
+          sql += ') REFERENCES `' + row.referenced_schema + '`.`' + row.referenced_table + '` (';
+          for (let field of row.referenced_fields) {
+            sql += '`' + field + '`,'
+          }
+          if (row.fields.length > 0) {
+            sql = sql.substring(0, sql.length - 1);
+          }
+          sql += ')';
+          if (row.on_update) {
+            sql += ` ON DELETE ${row.on_update}`;
+          }
+          if (row.on_delete) {
+            sql += ` ON UPDATE ${row.on_delete}`;
+          }
+          sql += ',';
+        }
+      }
+      if (!sql.endsWith(')'))
+        sql = sql.substring(0, sql.length - 1);
+      sql += '\n)'
+      if (item.comment) {
+        sql += ` COMMENT = '${item.comment}'`;
+      }
+      sql += ';';
+      for (let row of item.subtabs[3].data) {
+        if (row.name == null) continue;
+        sql += `\nCREATE TRIGGER ${row.name} BEFORE ${row.action} ON \`${item.table}\` FOR EACH ROW ${row.define || ''};`
+      }
+      return sql;
     }
   }
 }
@@ -1209,7 +1353,6 @@ body,
 
       .el-tabs__content,
       .el-tab-pane {
-        width: 100%;
         height: 100%;
         display: flex;
         flex-direction: column;
@@ -1282,10 +1425,7 @@ body,
         margin-bottom: 10px;
       }
 
-      .new_table {
-        width: 100%;
-        height: 100%;
-      }
+
     }
   }
 }

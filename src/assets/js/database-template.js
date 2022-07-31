@@ -1,15 +1,4 @@
-function validate() {
-    return {
-        trigger: 'blur', validator: (rule, value, callback) => {
-            if (!value) {
-                callback(new Error(this.db[this.connectionType].data[rule.field].name + ' ' + this.global.locale.required))
-                return false;
-            }
-            return true;
-        }
-    }
-}
-export default [{
+const templates = [{
     name: 'MySQL',
     icon: 'icon-mysql',
     alias: 'mysql',
@@ -36,15 +25,15 @@ export default [{
         }
     },
     dataValidate: {
-        name: [validate()],
-        host: [validate()],
-        port: [validate()],
-        user: [validate()],
-        pwd: [validate()],
+        name: [],
+        host: [],
+        port: [],
+        user: [],
+        pwd: [],
     },
     dataType: {
         binary: {
-            default_value:'text',
+            default_value: 'text',
         },
         blob: {
         },
@@ -56,62 +45,62 @@ export default [{
         },
         bigint: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         bit: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
         },
         char: {
             jsType: 'text',
-            default_value:'text',
+            default_value: 'text',
             character: 'select',
             collation: 'select',
             key_length: 'number'
         },
         date: {
             jsType: 'date',
-            default_value:'text',
+            default_value: 'text',
         },
         datetime: {
             jsType: 'datetime',
-            default_value:'text',
+            default_value: 'text',
             update_current_timestamp: 'checkbox'
         },
         decimal: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             unsigned: 'checkbox'
         },
         double: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         float: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         mediumint: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         smallint: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         tinyint: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
@@ -123,13 +112,13 @@ export default [{
         },
         int: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         integer: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
@@ -164,13 +153,13 @@ export default [{
         },
         enum: {
             jsType: 'select',
-            default_value:'text',
+            default_value: 'text',
             character: 'select',
             collation: 'select',
         },
         set: {
             jsType: 'select',
-            default_value:'text',
+            default_value: 'text',
             character: 'select',
             collation: 'select',
         },
@@ -192,23 +181,25 @@ export default [{
         },
         varchar: {
             jsType: 'text',
-            default_value:'text',
+            default_value: 'text',
             character: 'select',
             collation: 'select',
             key_length: 'number'
         },
         time: {
             jsType: 'time',
-            default_value:'text'
+            default_value: 'text'
         },
         timestamp: {
             jsType: 'timestamp',
-            default_value:'text',
+            default_value: 'text',
             update_current_timestamp: 'checkbox'
         },
         year: {
             jsType: 'number',
-            default_value:'text'
+            default_value: 'text'
         }
     },
-}];
+}]
+
+export default templates;
