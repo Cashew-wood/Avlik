@@ -83,5 +83,7 @@ export default {
     type:'类型',
     define:'定义',
     action:'动作',
-    table_name:'表名'
+    table_name:'表名',
+    tables:'表',
+    views:'视图'
 }

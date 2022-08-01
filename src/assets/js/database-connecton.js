@@ -54,7 +54,7 @@ export default {
                 let k = row.COLUMN_TYPE.indexOf('(');
                 let value = k > -1 ? row.COLUMN_TYPE.substring(k + 1, row.COLUMN_TYPE.length - 1) : null;
                 let len = null;
-                if (databaseTemplate[dbc.dbType].dataType[row.DATA_TYPE].jsType=='number') {
+                if (databaseTemplate[dbc.dbType].dataType[row.DATA_TYPE].jsType == 'number') {
                     len = value;
                     value = null;
                 }
@@ -73,5 +73,30 @@ export default {
             }
             return columns
         });
+    },
+    loadCharacter(dbc, dbName) {
+        return this.use(dbc, dbName, async (dc) => {
+            let data = await dc.select('select * from information_schema.COLLATION_CHARACTER_SET_APPLICABILITY')
+            let characterList = {};
+            for (let row of data) {
+                if (characterList[row.CHARACTER_SET_NAME]) {
+                    characterList[row.CHARACTER_SET_NAME].push(row.COLLATION_NAME)
+                } else {
+                    characterList[row.CHARACTER_SET_NAME] = [];
+                }
+            }
+            return characterList;
+        })
+    },
+    getTableDataPage(dbc, dbName, table, page, size,sqlCallback) {
+        let sql = `select * from ${table} limit ${(page - 1) * size},${size}`;
+        sqlCallback && sqlCallback(sql);
+        return this.use(dbc, dbName, async (dc) => {
+            return {
+                data: await dc.select(sql),
+                total: (await dc.select(`select count(*) count from ${table}`))[0].count
+            }
+        })
     }
+
 }

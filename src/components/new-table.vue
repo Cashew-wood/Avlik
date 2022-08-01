@@ -43,11 +43,12 @@
                                 :width="column.width" :prop="column.name" :label="global.locale[column.name]">
                                 <template #default="scope">
                                     <TableEdit
-                                        v-if="scope.row[hiddenFieldHasEdit + column.name] || column.type == 'checkbox'"
-                                        :type="column.type" v-model="scope.row[column.name]" :data="column.value"
+                                        v-if="scope.row[hiddenFieldHasEdit] == column.name || column.type == 'checkbox'"
+                                        :type="column.type" v-model="scope.row[column.name]" :data="column.$items"
                                         :row="scope.row" @next="editBoxNextFocus(subtab)"
-                                        @hide="tableEditBoxHide(subtab, scope.row, column.name)"
-                                        :focus="scope.row[hiddenFieldHasEdit + column.name]">
+                                        :style="{ 'width': column.width || '' }"
+                                        @hide="tableEditBoxHide(subtab, scope.row, column)"
+                                        :focus="scope.row[hiddenFieldHasEdit] == column.name">
                                     </TableEdit>
                                     <span class="defaultText" :class="{ 'null': scope.row[column.name] == null }"
                                         v-else>{{
@@ -58,35 +59,22 @@
                         </el-table>
                     </div>
                 </div>
-                <el-form class="setting" v-if="subtab.selectRow && subtab.selectRow.data_type">
-                    <el-form-item
-                        v-if="databaseTemplate[dbc.dbType].dataType[subtab.selectRow.data_type].jsType == 'select'"
-                        :label="global.locale.value" :label-width="140" key="_">
-                        <TableEdit :autoFocus="false" type="text" v-model="subtab.selectRow.selectData">
-                        </TableEdit>
-                        <el-button class="link" link type="primary" @click="openDefineNewDialog(subtab)">...</el-button>
-                    </el-form-item>
-                    <template v-for="(value, key) in databaseTemplate[dbc.dbType].dataType[subtab.selectRow.data_type]">
-                        <el-form-item v-if="key != 'jsType'" :label="global.locale[key]" :label-width="140" :key="key">
-                            <TableEdit :autoFocus="false" :type="value" v-model="subtab.selectRow[key]"
-                                :data="key == 'character' ? Object.keys(characterList) : (key == 'collation' ? characterList[subtab.selectRow['character']] : [])">
-                            </TableEdit>
-                        </el-form-item>
-                    </template>
-                </el-form>
                 <div class="scroll-setting setting" v-if="subtab.panel && subtab.selectRow">
                     <div class="scroll">
                         <el-scrollbar :class="{ 'full': subtab.panel.full }">
                             <el-form :label-position="subtab.panel.direction || 'right'">
                                 <template v-for="(column, i) in subtab.panel.form">
-                                    <el-form-item v-if="column.visible(this.item, subtab, subtab.selectRow)"
-                                        :label="global.locale[column.name]" :label-width="100">
+                                    <el-form-item :label="global.locale[column.name]" :label-width="150">
                                         <Codemirror v-if="column.type == 'code'" ref="editor"
                                             v-model:value="subtab.selectRow[column.name]" class="form-value"
                                             :options="cmOptions"></Codemirror>
                                         <TableEdit v-else :autoFocus="false" :type="column.type"
-                                            v-model="subtab.selectRow[column.name]" :data="column.value"
+                                            :style="{ 'width': column.width || '' }"
+                                            v-model="subtab.selectRow[column.name]" :data="column.$items"
+                                            @change="column.onChange && column.onChange(item, subtab, column, $event)"
                                             class="form-value" />
+                                        <el-button class="link" v-if="column.multiple" link type="primary"
+                                            @click="openDefineNewDialog(subtab, column)">...</el-button>
                                     </el-form-item>
                                 </template>
                             </el-form>
@@ -115,7 +103,7 @@
             </el-scrollbar>
             <template #footer>
                 <span class="dialog-footer">
-                    <el-button @click="closeDialog('defineNewDialog')">{{ global.locale.cancel }}</el-button>
+                    <el-button @click="defineNewDialog = false">{{ global.locale.cancel }}</el-button>
                     <el-button type="primary" @click="defineNew">{{ global.locale.ok }}</el-button>
                 </span>
             </template>
@@ -158,11 +146,12 @@ import 'codemirror/addon/fold/brace-fold'
 import 'codemirror/addon/fold/comment-fold'
 import 'codemirror/addon/scroll/simplescrollbars.js'
 import 'codemirror/addon/scroll/simplescrollbars.css'
+let dbTemplate = null;
 export default {
     data() {
         return {
             readOnlyOptions: {
-                mode: "text/x-sql",
+                mode: "text/x-mysql",
                 theme: "dracula",
                 lineNumbers: true,
                 smartIndent: true,
@@ -172,7 +161,7 @@ export default {
                 readOnly: true
             },
             cmOptions: {
-                mode: "text/x-sql",
+                mode: "text/x-mysql",
                 theme: "dracula",
                 lineNumbers: true,
                 smartIndent: true,
@@ -181,12 +170,11 @@ export default {
                 styleActiveLine: true,
                 scrollbarStyle: 'overlay'
             },
-            hiddenFieldHasEdit: "__$i",
+            hiddenFieldHasEdit: "__$$edit$",
             hiddenFieldPrefix: "__$",
             hiddenFieldState: "__$$state$",
             editFieldPosition: null,
             databaseTemplate: databaseTemplate,
-            characterList: {},
             defineNewDialog: false,
             defineNewValue: [],
             dialogVisible: false,
@@ -196,30 +184,17 @@ export default {
         };
     },
     props: {
-        item: Object,
-        generateSQL: Function,
-        dbc: Object
+        item: Object
     },
     mounted() {
-        this.loadCharacter();
+        dbTemplate = databaseTemplate[this.item.dbc.dbType];
+        dbTemplate.table.onCreate(this.item);
         for (let subtab of this.item.subtabs) {
             if (!subtab.data.length)
                 this.addNewTableRow(subtab.columns, subtab.data);
         }
     },
     methods: {
-        async loadCharacter() {
-            databaseConnecton.use(this.dbc, this.dbc.items[this.item.dbIndex].label, async (dc) => {
-                let data = await dc.select('select * from information_schema.COLLATION_CHARACTER_SET_APPLICABILITY')
-                for (let row of data) {
-                    if (this.characterList[row.CHARACTER_SET_NAME]) {
-                        this.characterList[row.CHARACTER_SET_NAME].push(row.COLLATION_NAME)
-                    } else {
-                        this.characterList[row.CHARACTER_SET_NAME] = [];
-                    }
-                }
-            })
-        },
         addNewTableRow(columns, data, insert) {
             let emptyRow = {};
             for (let column of columns) {
@@ -236,31 +211,34 @@ export default {
         },
         cellClick(subtab, row, column) {
             if (subtab.editFieldPosition) {
-                if (subtab.editFieldPosition.row[this.hiddenFieldHasEdit + subtab.editFieldPosition.column]) {
-                    subtab.editFieldPosition.row[this.hiddenFieldHasEdit + subtab.editFieldPosition.column] = false;
+                if (subtab.editFieldPosition.row[this.hiddenFieldHasEdit]) {
+                    subtab.editFieldPosition.row[this.hiddenFieldHasEdit] = null;
                     let column = subtab.columns[subtab.columns.findIndex(e => e.name == subtab.editFieldPosition.column)]
                     column.onChange && column.onChange(this.item, subtab, row, row[subtab.editFieldPosition.column]);
                 }
             }
-            row[this.hiddenFieldHasEdit + column.property] = true;
+            row[this.hiddenFieldHasEdit] = column.property;
             subtab.editFieldPosition = { row, column: column.property }
             console.log(row.fields)
         },
-        tableEditBoxHide(subtab, row, columnName) {
-            row[this.hiddenFieldHasEdit + columnName] = false;
+        tableEditBoxHide(subtab, row, column) {
+            let columnName = column.name;
+            if (row[this.hiddenFieldHasEdit] == columnName)
+                row[this.hiddenFieldHasEdit] = null;
             let diff = row[this.hiddenFieldPrefix + columnName] != row[columnName];
             subtab.dataChange = subtab.dataChange || diff;
             if (diff) {
                 if (!row[this.hiddenFieldState]) row[this.hiddenFieldState] = "update";
                 let column = subtab.columns[subtab.columns.findIndex(e => e.name == columnName)]
                 column.onChange && column.onChange(this.item, subtab, row, row[columnName]);
+                subtab.onChange && subtab.onChange(this.item, subtab, row, column)
             }
-            console.log(row)
             return diff;
         },
         editBoxNextFocus(subtab) {
             if (!subtab.editFieldPosition) return;
-            subtab.editFieldPosition.row[this.hiddenFieldHasEdit + subtab.editFieldPosition.column] = false;
+            if (subtab.editFieldPosition.row[this.hiddenFieldHasEdit] == subtab.editFieldPosition.column)
+                subtab.editFieldPosition.row[this.hiddenFieldHasEdit] = null;
             let row = subtab.data.findIndex(e => e == subtab.editFieldPosition.row);
             let find = -1;
             for (let column of subtab.columns) {
@@ -278,7 +256,7 @@ export default {
             if (row == subtab.data.length) {
                 this.addNewTableRow(subtab.columns, subtab.data);
             }
-            subtab.data[row][this.hiddenFieldHasEdit + find] = true;
+            subtab.data[row][this.hiddenFieldHasEdit] = find;
             subtab.editFieldPosition = { row: subtab.data[row], column: find }
         },
         stopTab(e) {
@@ -289,37 +267,22 @@ export default {
         },
         handleCurrentChange(subtab, row) {
             subtab.selectRow = subtab.data[subtab.data.findIndex(e => e == row)];
-            console.log(subtab)
+            row && subtab.onChange && subtab.onChange(this.item, subtab, row, null);
         },
-        openDefineNewDialog(subtab) {
+        openDefineNewDialog(subtab, column) {
             this.defineNewDialog = true;
-            if (subtab.selectRow.selectData) {
-                let array = subtab.selectRow.selectData.split(',');
-                for (let i in array) {
-                    array[i] = array[i].substring(1, array[i].length - 1);
-                }
-                this.defineNewValue = array;
+            subtab.selectColumn = column;
+            if (subtab.selectRow[column.name]) {
+                this.defineNewValue = column.deserialization('multiple', subtab.selectRow[column.name]);
             } else {
                 this.defineNewValue = [null];
             }
         },
-        closeDialog(name) {
-            this[name] = false;
-        },
         defineNew() {
-            console.log(this.subtabIndex)
             let subtab = this.item.subtabs[this.subtabIndex];
             this.defineNewDialog = false;
             if (this.defineNewValue) {
-                let value = ''
-                for (let s of this.defineNewValue) {
-                    if (s != null)
-                        value += `'${s}',`
-                }
-                if (value.length) {
-                    value = value.substring(0, value.length - 1);
-                }
-                subtab.selectRow.selectData = value;
+                subtab.selectRow[subtab.selectColumn.name] = subtab.selectColumn.serialize('multiple', this.defineNewValue);
             }
         },
         addNewRow(i) {
@@ -332,29 +295,25 @@ export default {
             try {
                 index = parseInt(index);
                 if (index == 5) {
-                    this.sql = this.generateSQL(this.item);
-                    console.log(this.sql);
+                    this.sql = dbTemplate.table.create(this.item);
                 }
                 if (this.item.subtabs[index])
                     for (let column of this.item.subtabs[index].columns) {
-                        if (column.valueInvoke) {
-                            column.value = column.valueInvoke(this.item, this.item.subtabs[index]);
-                        }
+                        column.onChangeTab && column.onChangeTab(this.item, this.item.subtabs[index], column);
                     }
             } catch (e) {
                 console.error(e)
             }
         },
         save() {
-            console.log(this.tableNameVisible, 'show dialog')
             this.tableNameVisible = true;
         },
         saveTable() {
             this.tableNameVisible = false;
-            this.sql = this.generateSQL(this.item);
+            this.sql = dbTemplate.table.create(this.item);
             let instance = this.$loading({ target: this.$refs.newTable, fullscreen: false })
             try {
-                databaseConnecton.use(this.dbc, this.dbc.items[this.item.dbIndex].label, async (dc) => {
+                databaseConnecton.use(this.item.dbc, this.item.db, async (dc) => {
                     try {
                         await dc.execute(this.sql);
                         instance.close();
@@ -426,10 +385,6 @@ export default {
 
     .el-form-item {
         margin-bottom: 0;
-
-        .el-input {
-            width: 60%;
-        }
     }
 
     .link {

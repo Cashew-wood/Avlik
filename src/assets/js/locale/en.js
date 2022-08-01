@@ -83,5 +83,7 @@ export default {
     type:'Type',
     define:'Define',
     action:'Action',
-    table_name:'Table Name'
+    table_name:'Table Name',
+    tables:'Tables',
+    views:'Views'
 }

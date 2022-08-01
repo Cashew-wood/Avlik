@@ -42,14 +42,16 @@
               :props="{ value: 'id', label: 'label', children: 'items' }" highlight-current :height="dbcHeight"
               @node-click="nodeClick" @node-contextmenu="nodeMenu">
               <template #default="{ node }">
-
                 <span v-if="node.level == 1" class="prefix iconfont cn"
                   :class="[db[node.data.dbType].icon, node.data.items.length ? 'open' : '']"></span>
                 <span v-if="node.level == 2" class="prefix iconfont db icon-jurassic_data"></span>
-                <img v-if="node.level == 3" class="prefix icon" src="../assets/img/table_x16.png" />
+                <template v-if="node.level > 2">
+                  <img v-if="node.data.type == 'tables'" class="prefix icon" src="../assets/img/tree-table.png" />
+                  <img v-if="node.data.type == 'views'" class="prefix icon" src="../assets/img/tree-view.png" />
+                </template>
                 <span>{{ node.label }}</span>
-                <div v-if="node.level == 3" style="position: absolute;left:0;right: 0;top: 0;bottom: 0;"
-                  @dblclick="openTable(node.data, node.parent.data)"></div>
+                <div v-if="node.level == 4" style="position: absolute;left:0;right: 0;top: 0;bottom: 0;"
+                  @dblclick="doubleItem(node)"></div>
               </template>
             </el-tree-v2>
           </div>
@@ -93,7 +95,7 @@
                 </div>
               </div>
             </div>
-            <NewTable v-if="item.type == 2" :item="item" :generateSQL="generateTableSQL" :dbc="dbc[item.dcIndex]">
+            <NewTable v-if="item.type == 2" :item="item">
             </NewTable>
             <div class="table-opt-tool" v-if="(item.dataType == 1 && item.data) || item.type == 0">
               <div class="to-left">
@@ -167,10 +169,13 @@
                 global.locale.open_database
             }}
             </el-dropdown-item>
-            <el-dropdown-item @click="refreshTable(contextmenu.data)">{{ global.locale.refresh }}</el-dropdown-item>
             <el-dropdown-item @click="deleteDB(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 3">
+            <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
+            <el-dropdown-item @click="refreshTable(contextmenu.data)">{{ global.locale.refresh }}</el-dropdown-item>
+          </el-dropdown-menu>
+          <el-dropdown-menu v-if="contextmenu.data.level == 4">
             <!-- <el-dropdown-item @click="switchTBStatus(contextmenu.data)">{{ contextmenu.data.data.open ?
                 global.locale.close_table :
                 global.locale.open_table
@@ -218,7 +223,7 @@ export default {
       hiddenFieldState: '__$$state$',
       hiddenFieldHasEdit: '__$i',
       cmOptions: {
-        mode: "text/x-sql", // Language mode
+        mode: "text/x-mysql", // Language mode
         theme: "dracula", // Theme
         lineNumbers: true, // Show line number
         smartIndent: true, // Smart indent
@@ -317,7 +322,6 @@ export default {
         template.dataValidate[key] = [this.validate(template)];
       }
     }
-
   },
   methods: {
     setLocale(obj) {
@@ -361,7 +365,27 @@ export default {
       if (node.level == 1) {
         this.refreshCN(node)
       } else if (node.level == 2) {
-        this.refreshTable(node);
+        node.data.items = databaseTemplate[this.getDBCByNode(node).dbType].dbItems.map(e => {
+          return {
+            id: treeId++,
+            label: this.global.locale[e],
+            items: [],
+            type: e
+          }
+        });
+        this.$refs.tree.setData(this.dbc);
+        console.log(this.dbc)
+      } else if (node.level == 3) {
+        if (node.data.type == 'tables') {
+          this.refreshTable(node);
+        }
+      }
+    },
+    doubleItem(node) {
+      if (node.data.type == 'tables') {
+        this.openTable(node.data, node.parent.data);
+      } else if (node.data.type == 'views') {
+
       }
     },
     validate(template) {
@@ -501,8 +525,7 @@ export default {
               id: treeId++,
               label: obj.Database,
               items: [],
-              db: node.data.db,
-              open: false
+              db: node.data.db
             })
           }
         }
@@ -535,17 +558,15 @@ export default {
         this.refreshTable(node);
       }
     },
-    refreshTable(node) {
-      this.getTable(this.getDBCByNode(node), node.data);
-    },
-    async getTable(dbc, dbData) {
-      let list = await this.getTableList(dbc, dbData.label);
+    async refreshTable(node) {
+      let list = await this.getTableList(this.getDBCByNode(node), node.level == 1 ? node.data.label : node.parent.data.label);
       for (let s of list) {
-        if (dbData.items.findIndex(e => e.label == s) == -1) {
-          dbData.items.push({
+        if (node.data.items.findIndex(e => e.label == s) == -1) {
+          node.data.items.push({
             id: treeId++,
             label: s,
-            items: []
+            items: [],
+            type: 'tables'
           })
         }
       }
@@ -593,40 +614,36 @@ export default {
         table: data.label
       })
       let tab = this.tabs[this.tabs.length - 1];
-      this.loadTableColumn(tab, data, parent);
-      this.loadTableData(tab, data.label, parent.label);
+      this.loadTableColumn(tab, data.label).then(e => {
+        tab.columns = e;
+      });
+      this.loadTableData(tab, data.label);
       this.tabIndex = this.tabs.length - 1
     },
-    async loadTableColumn(tab, data, parent) {
-      tab.columns = await this.getTableColumnsByDB(parent, data);
+    loadTableColumn(tab, table) {
+      return this.getTableColumns(this.dbc[tab.dcIndex], this.dbc[tab.dcIndex].items[tab.dbIndex].label, table);
     },
-    getTableColumnsByDB(db, table) {
-      let dbc = this.dbc[this.treeNodeFindById(db.id)[0]];
-      return this.getTableColumns(dbc, db.label, table.label);
-    },
-    async loadTableData(tab, table, dbName) {
+    async loadTableData(tab, table) {
       tab.dataChange = false;
       tab.wait = true;
-      tab.sql = `select * from ${table} limit ${(tab.data_index - 1) * tab.data_size},${tab.data_size}`
-      tab.explain = tab.sql;
       tab.data_index = tab.data_index || 1;
       tab.data_size = tab.data_size || 500;
-      this.use(this.dbc[tab.dcIndex], dbName, async (db) => {
-        try {
-          if (tab.data_index == 1)
-            tab.data_total = (await db.select(`select count(*) count from ${table}`))[0].count;
-          let tableData = await db.select(tab.sql);
-          tab.data = this.setDuplicateData(tableData);
-          tab.wait = false;
-        } catch (e) {
-          tab.wait = false;
-          this.$message({
-            duration: 3000,
-            message: e,
-            type: 'error'
-          })
-        }
-      });
+      try {
+        let page = await databaseConnecton.getTableDataPage(this.dbc[tab.dcIndex], this.dbc[tab.dcIndex].items[tab.dbIndex].label, table, tab.data_index, tab.data_size, (e) => {
+          tab.sql = e;
+          tab.explain = tab.sql;
+        });
+        tab.data_total = page.total;
+        tab.data = this.setDuplicateData(page.data);
+        tab.wait = false;
+      } catch (e) {
+        tab.wait = false;
+        this.$message({
+          duration: 3000,
+          message: e,
+          type: 'error'
+        })
+      }
     },
     treeNodeFindById(id) {
       let root = [{ path: [], items: this.dbc }];
@@ -792,7 +809,7 @@ export default {
             }, (e) => {
               this.sqlRunEnd(tab, e);
             });
-            tab.columns = await this.getTableColumnsByDB(db, { label: tab.table });
+            tab.columns = await this.loadTableColumn(tab, tab.table);
           } else {
             tab.runId = await cn.selectAsync(sql, null, (rs) => {
               this.sqlRunEnd(tab);
@@ -1008,7 +1025,7 @@ export default {
     },
     pagingChange(tab, e) {
       tab.data_index = e;
-      this.loadTableData(tab, tab.table, this.dbc[tab.dcIndex].items[tab.dbIndex].label);
+      this.loadTableData(tab, tab.table);
     },
     async chooseFile() {
       let files = await native.io.chooseFile(this.global.locale.open, false, null, 'SQL|*.sql')
@@ -1020,207 +1037,19 @@ export default {
     },
     addTable(node) {
       let path = this.treeNodeFindById(node.data.id);
+      let dbc = this.dbc[path[0]];
+      let tableTemplate = databaseTemplate[dbc.dbType];
       this.tabs.push({
         id: Date.now(),
         type: 2,
         name: this.global.locale.new_table,
-        subtabs: [{
-          name: 'fields',
-          columns: [{ name: 'name', width: 150, type: 'text' },
-          { name: 'data_type', width: 100, type: 'select', value: Object.keys(this.db[this.getDBCByNode(node).dbType].dataType) },
-          { name: 'length', width: 80, type: 'number' },
-          { name: 'decimals', width: 80, type: 'number' },
-          { name: 'not_null', width: 80, type: 'checkbox' },
-          { name: 'key', width: 80, type: 'checkbox' },
-          { name: 'comment', width: 200, type: 'text' },
-          ],
-          data: []
-        }, {
-          name: 'indexs',
-          columns: [{ name: 'name', width: 150, type: 'text', },
-          {
-            name: 'fields', width: 250, type: 'select-multiple', valueInvoke: (tab, sub) => {
-              return tab.subtabs[0].data.filter(e => e.name != null).map(e => e.name);
-            }
-          },
-          { name: 'index_type', width: 120, type: 'select', value: ['FULLTEXT', 'NORMAL', 'SPATIAL', 'UNIQUE'] },
-          { name: 'index_method', width: 120, type: 'select', value: ['BTREE', 'HASH'] },
-          { name: 'key_block_size', width: 120, type: 'number' },
-          { name: 'comment', width: 200, type: 'text' }],
-          data: [],
-        }, {
-          name: 'foreign_keys',
-          columns: [{ name: 'name', width: 100, type: 'text', },
-          {
-            name: 'fields', width: 250, type: 'select-multiple', valueInvoke: (tab, sub) => {
-              return tab.subtabs[0].data.filter(e => e.name != null).map(e => e.name);
-            }
-          },
-          {
-            name: 'referenced_schema', width: 130, type: 'select', valueInvoke: (tab, sub) => {
-              return this.dbc[tab.dcIndex].items.map(e => e.label)
-            }, onChange: async (item, subtab, row, value) => {
-              subtab.columns[subtab.columns.findIndex(e => e.name == 'referenced_table')].value = await this.getTableList(this.dbc[item.dcIndex], value)
-            }
-          },
-          {
-            name: 'referenced_table', width: 130, type: 'select', onChange: async (item, subtab, row, value) => {
-              subtab.columns[subtab.columns.findIndex(e => e.name == 'referenced_fields')].value = (await this.getTableColumns(this.dbc[item.dcIndex],
-                row.referenced_schema, value)).map(e => e.name);
-            }
-          },
-          { name: 'referenced_fields', width: 250, type: 'select-multiple' },
-          { name: 'on_update', width: 100, type: 'select', value: ['CASCADE', 'NO ACTION', 'RESTRICT', 'SET NULL'] },
-          { name: 'on_delete', width: 100, type: 'select', value: ['CASCADE', 'NO ACTION', 'RESTRICT', 'SET NULL'] }],
-          data: [],
-        }, {
-          name: 'triggers',
-          columns: [{ name: 'name', width: 100, type: 'text', },
-          {
-            name: 'type', width: 100, type: 'select', value: ['AFTER', 'BEFORE']
-          },
-          {
-            name: 'action', width: 100, type: 'select', value: ['INSERT', 'UPDATE', 'DELETE']
-          }],
-          data: [],
-          panel: {
-            direction: 'top',
-            full: 'true',
-            form: [{
-              name: 'define', type: 'code', visible: (item, sub, selectRow) => true
-            }]
-          }
-        }],
+        subtabs: tableTemplate.table.metatable,
         table: this.global.locale.unnamed,
-        dcIndex: path[0],
-        dbIndex: path[1]
+        dbc,
+        db: dbc.items[path[1]]
       })
+      console.log(this.tabs[this.tabs.length - 1])
       this.tabIndex = this.tabs.length - 1;
-    },
-    generateTableSQL(item) {
-      let sql = 'create table `' + item.table + '`(';
-      let priKeys = [];
-      for (let row of item.subtabs[0].data) {
-        if (row.name == null || row.data_type == null) continue;
-        sql += '\n`' + row.name + '` ' + row.data_type;
-        if (this.db[this.dbc[item.dcIndex].dbType].dataType[row.data_type].jsType == 'text' && row.length) {
-          sql += '(' + row.length + ')';
-        } else if (row.length && this.db[this.dbc[item.dcIndex].dbType].dataType[row.data_type].jsType == 'number') {
-          sql += '(' + row.length;
-          if (row.decimals) {
-            sql += ',' + row.decimals;
-          }
-          sql += ')'
-        }
-        sql += ' ';
-        if (row.selectData) {
-          sql += '(' + row.selectData + ') ';
-        }
-        if (row.character) {
-          sql += 'CHARACTER SET ' + row.character + ' ';
-        }
-        if (row.collation) {
-          sql += 'COLLATE ' + row.collation + ' ';
-        }
-        if (row.unsigned) {
-          sql += 'UNSIGNED '
-        }
-        if (row.not_null) {
-          sql += 'NOT ';
-        }
-        sql += 'NULL';
-        if (row.default_value != null) {
-          sql += ` DEFAULT ${row.default_value}`;
-        }
-        if (row.auto_increment) {
-          sql += ' AUTO_INCREMENT'
-        }
-        if (row.update_current_timestamp) {
-          sql += ` ON UPDATE CURRENT_TIMESTAMP`
-        }
-        if (row.comment) {
-          sql += ` COMMENT '${row.comment}'`
-        }
-        sql += ','
-        if (row.key) {
-          priKeys.push(row);
-        }
-      }
-      if (priKeys.length) {
-        sql += '\nPRIMARY KEY (';
-        for (let row of priKeys) {
-          sql += '`' + row.name;
-          if (row.key_length) {
-            sql += '`(' + row.key_length + '),';
-          } else {
-            sql += '`,';
-          }
-        }
-        sql = sql.substring(0, sql.length - 1) + '),';
-      }
-      if (item.subtabs[1] && item.subtabs[1].data && item.subtabs[1].data.length) {
-        for (let row of item.subtabs[1].data) {
-          if (row.name == null) continue;
-          sql += '\n';
-          if (row.index_type != 'NORMAL') {
-            sql += row.index_type + ' ';
-          }
-          sql += `INDEX \`${row.name}\`(`
-          for (let field of row.fields) {
-            sql += '`' + field + '`,'
-          }
-          if (row.fields.length > 0) {
-            sql = sql.substring(0, sql.length - 1);
-          }
-          sql += ')';
-          if (row.index_method) {
-            sql += ' USING ' + row.index_method;
-          }
-          if (row.comment) {
-            sql += ` COMMENT '${row.comment}'`;
-          }
-          sql += ',';
-        }
-      }
-      if (item.subtabs[2] && item.subtabs[2].data && item.subtabs[2].data.length) {
-        for (let row of item.subtabs[2].data) {
-          if (row.name == null) continue;
-          sql += `\nCONSTRAINT ${row.name} FOREIGN KEY (`
-          for (let field of row.fields) {
-            sql += '`' + field + '`,'
-          }
-          if (row.fields.length > 0) {
-            sql = sql.substring(0, sql.length - 1);
-          }
-          sql += ') REFERENCES `' + row.referenced_schema + '`.`' + row.referenced_table + '` (';
-          for (let field of row.referenced_fields) {
-            sql += '`' + field + '`,'
-          }
-          if (row.fields.length > 0) {
-            sql = sql.substring(0, sql.length - 1);
-          }
-          sql += ')';
-          if (row.on_update) {
-            sql += ` ON DELETE ${row.on_update}`;
-          }
-          if (row.on_delete) {
-            sql += ` ON UPDATE ${row.on_delete}`;
-          }
-          sql += ',';
-        }
-      }
-      if (!sql.endsWith(')'))
-        sql = sql.substring(0, sql.length - 1);
-      sql += '\n)'
-      if (item.comment) {
-        sql += ` COMMENT = '${item.comment}'`;
-      }
-      sql += ';';
-      for (let row of item.subtabs[3].data) {
-        if (row.name == null) continue;
-        sql += `\nCREATE TRIGGER ${row.name} BEFORE ${row.action} ON \`${item.table}\` FOR EACH ROW ${row.define || ''};`
-      }
-      return sql;
     }
   }
 }

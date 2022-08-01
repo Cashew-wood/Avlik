@@ -1,4 +1,5 @@
-const templates = [{
+import MysqlTable from "./mysql-table";
+const mysqTemplate={
     name: 'MySQL',
     icon: 'icon-mysql',
     alias: 'mysql',
@@ -200,6 +201,9 @@ const templates = [{
             default_value: 'text'
         }
     },
-}]
+    dbItems: ['tables']
+}
+mysqTemplate.table=new MysqlTable(mysqTemplate);
+const templates = [mysqTemplate]
 
 export default templates;
