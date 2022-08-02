@@ -85,5 +85,6 @@ export default {
     action:'Action',
     table_name:'Table Name',
     tables:'Tables',
-    views:'Views'
+    views:'Views',
+    design_table:'Design Table'
 }

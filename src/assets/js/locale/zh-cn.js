@@ -85,5 +85,6 @@ export default {
     action:'动作',
     table_name:'表名',
     tables:'表',
-    views:'视图'
+    views:'视图',
+    design_table:'设计表'
 }

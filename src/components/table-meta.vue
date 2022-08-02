@@ -37,7 +37,8 @@
                 <div class="scroll-parent">
                     <div class="scroll">
                         <el-table :data="subtab.data" class="table" border
-                            @cell-click="(a, b) => { cellClick(subtab, a, b) }" highlight-current-row @keydown="stopTab"
+                            @cell-click="(a, b) => { cellClick(subtab, a, b) }" :ref="'table_' + i"
+                            highlight-current-row @keydown="stopTab"
                             @current-change="handleCurrentChange(subtab, $event)">
                             <el-table-column align="center" v-for="(column, i) in subtab.columns" :key="i"
                                 :width="column.width" :prop="column.name" :label="global.locale[column.name]">
@@ -258,6 +259,7 @@ export default {
             }
             subtab.data[row][this.hiddenFieldHasEdit] = find;
             subtab.editFieldPosition = { row: subtab.data[row], column: find }
+            this.$refs['table_' + this.subtabIndex][0].setCurrentRow(subtab.data[row]);
         },
         stopTab(e) {
             if (e.code == 'Tab') {
@@ -296,6 +298,7 @@ export default {
                 index = parseInt(index);
                 if (index == 5) {
                     this.sql = dbTemplate.table.create(this.item);
+                    console.log(this.sql,this.item)
                 }
                 if (this.item.subtabs[index])
                     for (let column of this.item.subtabs[index].columns) {
@@ -313,9 +316,10 @@ export default {
             this.sql = dbTemplate.table.create(this.item);
             let instance = this.$loading({ target: this.$refs.newTable, fullscreen: false })
             try {
-                databaseConnecton.use(this.item.dbc, this.item.db, async (dc) => {
+                databaseConnecton.use(this.item.dbc, this.item.db.label, async (dc) => {
                     try {
                         await dc.execute(this.sql);
+                        this.$emit('add',this.item.table);
                         instance.close();
                     } catch (e) {
                         console.error(e)

@@ -95,8 +95,8 @@
                 </div>
               </div>
             </div>
-            <NewTable v-if="item.type == 2" :item="item">
-            </NewTable>
+            <TableMeta v-if="item.type == 2" :item="item" @add="addNewTable(item)">
+            </TableMeta>
             <div class="table-opt-tool" v-if="(item.dataType == 1 && item.data) || item.type == 0">
               <div class="to-left">
                 <span class="icon iconfont icon-zengjia" :class="{ 'disable': item.table == null }"
@@ -176,11 +176,8 @@
             <el-dropdown-item @click="refreshTable(contextmenu.data)">{{ global.locale.refresh }}</el-dropdown-item>
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 4">
-            <!-- <el-dropdown-item @click="switchTBStatus(contextmenu.data)">{{ contextmenu.data.data.open ?
-                global.locale.close_table :
-                global.locale.open_table
-            }}
-            </el-dropdown-item> -->
+            <el-dropdown-item @click="designTable(contextmenu.data)">{{ global.locale.design_table }}
+            </el-dropdown-item>
             <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
             <el-dropdown-item @click="deleteTable(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
           </el-dropdown-menu>
@@ -213,9 +210,9 @@ import 'codemirror/addon/fold/brace-fold'
 import 'codemirror/addon/fold/comment-fold'
 import DataTable from '../components/data-table.vue';
 import TableEdit from '../components/table-edit.vue';
-import NewTable from '../components/new-table.vue';
 import databaseTemplate from '../assets/js/database-template';
 import databaseConnecton from '../assets/js/database-connecton';
+import TableMeta from '../components/table-meta.vue';
 export default {
   data() {
     return {
@@ -306,7 +303,7 @@ export default {
       }
     }
   },
-  components: { TitleBar, Codemirror, DataTable, TableEdit, NewTable },
+  components: { TitleBar, Codemirror, DataTable, TableEdit, TableMeta },
   mounted() {
     if (native && native.isInit) {
       this.init();
@@ -359,6 +356,13 @@ export default {
         })
         observable.observe(this.$refs.main_left);
       }, 100);
+    },
+    error(e) {
+      this.$message({
+        duration: 3000,
+        message: e,
+        type: 'error'
+      })
     },
     nodeClick(data, node, e) {
       if (data.items && data.items.length > 0) return;
@@ -448,10 +452,16 @@ export default {
       }
     },
     getDBCByNode(node) {
-      while (node.level != 1) {
+      while (node != null && node.level != 1) {
         node = node.parent;
       }
       return node.data;
+    },
+    getDBNodeByNode(node) {
+      while (node != null && node.level != 2) {
+        node = node.parent;
+      }
+      return node;
     },
     switchCNStatus(node) {
       console.log('close', node.data.id, this.$refs.tree)
@@ -558,11 +568,15 @@ export default {
         this.refreshTable(node);
       }
     },
-    async refreshTable(node) {
-      let list = await this.getTableList(this.getDBCByNode(node), node.level == 1 ? node.data.label : node.parent.data.label);
+    refreshTable(node) {
+      return this.refreshTableByDB(this.getDBCByNode(node), node.level == 1 ? node.data : node.parent.data);
+    },
+    async refreshTableByDB(dbcData, dbData) {
+      let list = await this.getTableList(dbcData, dbData.label);
+      let tableData = dbData.items[dbData.items.findIndex(e => e.type == 'tables')]
       for (let s of list) {
-        if (node.data.items.findIndex(e => e.label == s) == -1) {
-          node.data.items.push({
+        if (tableData.items.findIndex(e => e.label == s) == -1) {
+          tableData.items.push({
             id: treeId++,
             label: s,
             items: [],
@@ -591,11 +605,14 @@ export default {
         cancelButtonText: this.global.locale.cancel,
         type: 'warning',
       })
-      this.use(this.getDBCByNode(node), node.parent.data.label, async (db) => {
-        await db.execute('drop table ' + node.data.label);
-        node.parent.data.items.splice(node.parent.data.items.findIndex(e => e.id == node.data.id), 1);
-        this.$refs.tree.setData(this.dbc);
-      });
+      let dbNode = this.getDBNodeByNode(node);
+      try {
+        await this.dropTable(dbNode.parent.data, dbNode.data.label, node.data.label);
+      } catch (e) {
+        this.error(e);
+      }
+      node.parent.data.items.splice(node.parent.data.items.findIndex(e => e.id == node.data.id), 1);
+      this.$refs.tree.setData(this.dbc);
     },
     async openTable(data, parent) {
       let path = this.treeNodeFindById(data.id);
@@ -638,11 +655,7 @@ export default {
         tab.wait = false;
       } catch (e) {
         tab.wait = false;
-        this.$message({
-          duration: 3000,
-          message: e,
-          type: 'error'
-        })
+        this.error(e);
       }
     },
     treeNodeFindById(id) {
@@ -844,11 +857,7 @@ export default {
       }
     },
     setSqlErrorResult(tab, e) {
-      this.$message({
-        duration: 3000,
-        message: e,
-        type: 'error'
-      })
+      this.error(e);
       tab.data = e;
       tab.dataType = 0;
     },
@@ -898,7 +907,7 @@ export default {
       let sql = '';
       let primaryColumns = []
       for (let column of tab.columns) {
-        if (column.key == 'PRI') {
+        if (column.key) {
           primaryColumns.push(column.name);
         }
         columnInfos[column.name] = { jsType: this.db[this.dbc[tab.dcIndex].dbType].dataType[column.type].jsType, ...column };
@@ -980,11 +989,7 @@ export default {
       }, (e) => {
         tab.wait = false;
         cn.close();
-        this.$message({
-          duration: 3000,
-          message: e,
-          type: 'error'
-        })
+        this.error(e);
       })
     },
     resetResult(tab) {
@@ -1016,11 +1021,7 @@ export default {
       }, (e) => {
         cn.close();
         tab.wait = false;
-        this.$message({
-          duration: 3000,
-          message: e,
-          type: 'error'
-        })
+        this.error(e);
       })
     },
     pagingChange(tab, e) {
@@ -1042,7 +1043,7 @@ export default {
       this.tabs.push({
         id: Date.now(),
         type: 2,
-        name: this.global.locale.new_table,
+        name: this.global.locale.unnamed,
         subtabs: tableTemplate.table.metatable,
         table: this.global.locale.unnamed,
         dbc,
@@ -1050,6 +1051,27 @@ export default {
       })
       console.log(this.tabs[this.tabs.length - 1])
       this.tabIndex = this.tabs.length - 1;
+    },
+    designTable(node) {
+      let path = this.treeNodeFindById(node.data.id);
+      let dbc = this.dbc[path[0]];
+      let tableTemplate = databaseTemplate[dbc.dbType];
+      this.tabs.push({
+        id: Date.now(),
+        type: 2,
+        name: node.data.label,
+        subtabs: tableTemplate.table.metatable,
+        table: node.data.label,
+        dbc,
+        db: dbc.items[path[1]],
+        design: true
+      })
+      console.log(this.tabs[this.tabs.length - 1])
+      this.tabIndex = this.tabs.length - 1;
+    },
+    addNewTable(item) {
+      item.name = item.label;
+      this.refreshTableByDB(dbc[item.dcIndex], dbc[item.dcIndex].items[item.dbIndex])
     }
   }
 }

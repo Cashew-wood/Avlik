@@ -60,7 +60,7 @@ export default {
             if (!this.set) return;
             if (n == null)
                 this.placeholder = '(Null)';
-            else this.placeholder = n;
+            else this.placeholder = n.toString();
             if (this.type == 'time') {
                 this.$emit('update:modelValue', this.timeFormat(n));
             } else {
@@ -101,7 +101,6 @@ export default {
         } else {
             this.value = this.modelValue;
         }
-        console.log(this.type, this.value)
         this.set = true;
         this.$nextTick(() => {
             if (this.autoFocus) {
@@ -124,7 +123,19 @@ export default {
         },
         downlistVisibleChange(val) {
             this.downlistVisible = val;
-            this.nextChangeValHide = true;
+            if (!val) {
+                if (this.type == 'select') {
+                    this.nextChangeValHide = true;
+                    setTimeout(() => {
+                        this.focusShow = false;
+                        this.$emit('hide')
+                    }, 150);
+                } else if (this.type == 'select-multiple') {
+                    this.focusShow = false;
+                    this.$emit('hide')
+                }
+            }
+
         },
         setNull() {
             this.value = null;
