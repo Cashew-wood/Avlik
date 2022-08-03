@@ -86,5 +86,6 @@ export default {
     table_name:'Table Name',
     tables:'Tables',
     views:'Views',
-    design_table:'Design Table'
+    design_table:'Design Table',
+    rename:'Rename'
 }

@@ -40,7 +40,7 @@
           <div class="fixed" ref="main_left" :data-type="dbcHeight">
             <el-tree-v2 ref="tree" :data="dbc" v-if="dbcHeight"
               :props="{ value: 'id', label: 'label', children: 'items' }" highlight-current :height="dbcHeight"
-              @node-click="nodeClick" @node-contextmenu="nodeMenu">
+              @node-click="nodeClick" @node-contextmenu="nodeMenu" @keydown="treeShortcutKey">
               <template #default="{ node }">
                 <span v-if="node.level == 1" class="prefix iconfont cn"
                   :class="[db[node.data.dbType].icon, node.data.items.length ? 'open' : '']"></span>
@@ -49,9 +49,11 @@
                   <img v-if="node.data.type == 'tables'" class="prefix icon" src="../assets/img/tree-table.png" />
                   <img v-if="node.data.type == 'views'" class="prefix icon" src="../assets/img/tree-view.png" />
                 </template>
-                <span>{{ node.label }}</span>
-                <div v-if="node.level == 4" style="position: absolute;left:0;right: 0;top: 0;bottom: 0;"
-                  @dblclick="doubleItem(node)"></div>
+                <el-input ref="rename" v-if="node.data.$rename" v-model="node.data.$name" autofocus size="small"
+                  @blur="renameClose(node)" @keydown="renameKeyDown($event, node)" style="width: calc(100% - 60px)" />
+                <span v-else>{{ node.label }}</span>
+                <div v-if="node.level == 4 && !node.data.$rename"
+                  style="position: absolute;left:0;right: 0;top: 0;bottom: 0;" @dblclick="doubleItem(node)"></div>
               </template>
             </el-tree-v2>
           </div>
@@ -134,8 +136,8 @@
 
     <el-dialog v-model="connectionDialog.visible" :title="global.locale.new_connection" width="50%"
       ref="connectionDialog" custom-class="connection-dialog">
-      <el-form ref="NCF" :model="connection" :rules="db[connectionType].dataValidate" border>
-        <el-form-item v-for="(item, key) in db[connectionType].data" :label="item.name" :prop="key"
+      <el-form ref="NCF" :model="connection" :rules="db[connectionDialog.dbType].dataValidate" border>
+        <el-form-item v-for="(item, key) in db[connectionDialog.dbType].data" :label="item.name" :prop="key"
           :label-width="connectionDialog.labelWidth">
           <el-input :type="item.type || 'text'" v-model="connection[key]" autocomplete="off" maxlength="30" />
         </el-form-item>
@@ -160,7 +162,7 @@
             </el-dropdown-item>
             <el-dropdown-item @click="editCN(contextmenu.data)">{{ global.locale.edit_connection }}</el-dropdown-item>
             <el-dropdown-item @click="refreshCN(contextmenu.data)">{{ global.locale.refresh }}</el-dropdown-item>
-            <el-dropdown-item @click="removeCN(contextmenu.data)">{{ global.locale.delete }}
+            <el-dropdown-item divided @click="removeCN(contextmenu.data)">{{ global.locale.delete }}
             </el-dropdown-item>
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 2">
@@ -176,10 +178,12 @@
             <el-dropdown-item @click="refreshTable(contextmenu.data)">{{ global.locale.refresh }}</el-dropdown-item>
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 4">
-            <el-dropdown-item @click="designTable(contextmenu.data)">{{ global.locale.design_table }}
-            </el-dropdown-item>
+            <el-dropdown-item @click="designTable(contextmenu.data)">{{ global.locale.design_table }}</el-dropdown-item>
             <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
-            <el-dropdown-item @click="deleteTable(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
+            <el-dropdown-item divided @click="renameTable(contextmenu.data.data)">{{ global.locale.rename }}
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="deleteTable(contextmenu.data)">{{ global.locale.delete }}
+            </el-dropdown-item>
           </el-dropdown-menu>
         </div>
       </template>
@@ -281,16 +285,10 @@ export default {
         id: null,
         visible: false,
         labelWidth: '100px',
-        edit: false
+        edit: false,
+        dbType: 0
       },
-      connection: {
-        name: '',
-        host: '',
-        port: '',
-        user: '',
-        pwd: ''
-      },
-      connectionType: 0,
+      connection: {},
       tabs: [],
       tabIndex: 0,
       contextmenu: {
@@ -299,6 +297,11 @@ export default {
         data: null
       },
       about: {
+        visible: false
+      },
+      renameDialog: {
+        type: null,
+        value: null,
         visible: false
       }
     }
@@ -313,7 +316,6 @@ export default {
     this.db = databaseTemplate;
     this.setDisplayLocale('en');
     this.loadStorage();
-    Object.assign(this, databaseConnecton);
     for (let template of this.db) {
       for (let key in template.dataValidate) {
         template.dataValidate[key] = [this.validate(template)];
@@ -343,16 +345,14 @@ export default {
       console.log(native)
       native.window.show();
       let actualSize = await this.global.device.screenActualSize;
-      native.window.width = parseInt(actualSize.width * 0.625);
-      native.window.height = parseInt(actualSize.height * 0.75);
+      native.window.width = parseInt(actualSize.width * 0.75);
+      native.window.height = parseInt(actualSize.height * 0.85);
       native.window.showCenter();
       native.window.addDragMoveArea(0, 0, 20000, 40);
       setTimeout(() => {
         this.dbcHeight = this.$refs.main_left.offsetHeight;
-        console.log(this.dbcHeight)
         let observable = new ResizeObserver((e) => {
-          this.dbcHeight = this.$refs.main_left.offsetHeight;
-          console.log(this.dbcHeight)
+          this.dbcHeight = this.$refs.main_left && this.$refs.main_left.offsetHeight;
         })
         observable.observe(this.$refs.main_left);
       }, 100);
@@ -364,25 +364,35 @@ export default {
         type: 'error'
       })
     },
-    nodeClick(data, node, e) {
+    async nodeClick(data, node, e) {
       if (data.items && data.items.length > 0) return;
-      if (node.level == 1) {
-        this.refreshCN(node)
-      } else if (node.level == 2) {
-        node.data.items = databaseTemplate[this.getDBCByNode(node).dbType].dbItems.map(e => {
-          return {
-            id: treeId++,
-            label: this.global.locale[e],
-            items: [],
-            type: e
+      let loading = null;
+      let loadingId = setTimeout(() => {
+        loading = this.$loading({ target: this.$refs.main_left })
+      }, 100);
+      try {
+        if (node.level == 1) {
+          await this.refreshCN(node);
+        } else if (node.level == 2) {
+          node.data.items = databaseTemplate[this.getDBCByNode(node).dbType].dbItems.map(e => {
+            return {
+              id: treeId++,
+              label: this.global.locale[e],
+              items: [],
+              type: e
+            }
+          });
+          this.$refs.tree.setData(this.dbc);
+        } else if (node.level == 3) {
+          if (node.data.type == 'tables') {
+            await this.refreshTable(node);
           }
-        });
-        this.$refs.tree.setData(this.dbc);
-        console.log(this.dbc)
-      } else if (node.level == 3) {
-        if (node.data.type == 'tables') {
-          this.refreshTable(node);
         }
+      } catch (e) {
+        this.error(e);
+      } finally {
+        clearTimeout(loadingId)
+        loading && loading.close();
       }
     },
     doubleItem(node) {
@@ -408,7 +418,7 @@ export default {
       for (let key in current.data) {
         this.connection[key] = current.data[key].value;
       }
-      this.connectionType = i;
+      this.connectionDialog.dbType = i;
       this.connectionDialog.visible = true;
       this.connectionDialog.edit = false;
     },
@@ -417,7 +427,7 @@ export default {
         if (vaild) {
           if (!this.connectionDialog.edit) {
             this.connectionDialog.visible = false;
-            this.addConnectionByInfo(this.connection, this.connectionType);
+            this.addConnectionByInfo(this.connection, this.connectionDialog.dbType);
             this.$refs.tree.setData(this.dbc);
           } else {
             this.connectionDialog.visible = false;
@@ -488,7 +498,14 @@ export default {
       }, 200)
     },
     nodeMenu(e, data, node) {
-      console.log(node)
+      if (this.contextmenu.visible) {
+        this.$refs.contextmenu.handleClose();
+        setTimeout(() => {
+          this.contextmenu.visible = false;
+          this.nodeMenu(e, data, node)
+        }, 50);
+        return;
+      }
       this.contextmenu.visible = true;
       let contextmenu = document.querySelector('.contextmenu')
       let parent;
@@ -509,7 +526,6 @@ export default {
       contextmenu.style.width = rect.width + 'px';
       contextmenu.style.height = rect.height + 'px';
       this.$refs.contextmenu.handleOpen();
-
     },
     async editCN(node) {
       if (node.data.items.length) {
@@ -521,13 +537,13 @@ export default {
         this.closeConnection(node.data);
       }
       this.connection = node.data.info;
-      this.connectionType = node.data.dbType;
+      this.connectionDialog.dbType = node.data.dbType;
       this.connectionDialog.visible = true;
       this.connectionDialog.edit = true;
       this.connectionDialog.id = node.data.id;
     },
     async refreshCN(node) {
-      this.use(this.getDBCByNode(node), async (db) => {
+      databaseConnecton.use(this.getDBCByNode(node), async (db) => {
         let dbs = await db.select('show databases');
         for (let obj of dbs) {
           if (node.data.items.findIndex(e => e.label == obj.Database) == -1) {
@@ -572,7 +588,7 @@ export default {
       return this.refreshTableByDB(this.getDBCByNode(node), node.level == 1 ? node.data : node.parent.data);
     },
     async refreshTableByDB(dbcData, dbData) {
-      let list = await this.getTableList(dbcData, dbData.label);
+      let list = await databaseConnecton.getTableList(dbcData, dbData.label);
       let tableData = dbData.items[dbData.items.findIndex(e => e.type == 'tables')]
       for (let s of list) {
         if (tableData.items.findIndex(e => e.label == s) == -1) {
@@ -593,7 +609,7 @@ export default {
         cancelButtonText: this.global.locale.cancel,
         type: 'warning',
       })
-      this.use(this.getDBCByNode(node), async (db) => {
+      databaseConnecton.use(this.getDBCByNode(node), async (db) => {
         await db.execute('drop database ' + node.data.label);
         node.parent.data.items.splice(node.parent.data.items.findIndex(e => e.id == node.data.id), 1);
         this.$refs.tree.setData(this.dbc);
@@ -607,7 +623,7 @@ export default {
       })
       let dbNode = this.getDBNodeByNode(node);
       try {
-        await this.dropTable(dbNode.parent.data, dbNode.data.label, node.data.label);
+        await databaseConnecton.dropTable(dbNode.parent.data, dbNode.data.label, node.data.label);
       } catch (e) {
         this.error(e);
       }
@@ -615,7 +631,7 @@ export default {
       this.$refs.tree.setData(this.dbc);
     },
     async openTable(data, parent) {
-      let path = this.treeNodeFindById(data.id);
+      let path = this.getNodeDataPathById(data.id).path;
       console.log(path);
       this.tabs.push({
         id: Date.now(),
@@ -624,7 +640,7 @@ export default {
         data: [],
         columns: [],
         data_index: 1,
-        data_size: 50,
+        data_size: 100,
         data_total: null,
         dcIndex: path[0],
         dbIndex: path[1],
@@ -638,13 +654,13 @@ export default {
       this.tabIndex = this.tabs.length - 1
     },
     loadTableColumn(tab, table) {
-      return this.getTableColumns(this.dbc[tab.dcIndex], this.dbc[tab.dcIndex].items[tab.dbIndex].label, table);
+      return databaseConnecton.getTableColumns(this.dbc[tab.dcIndex], this.dbc[tab.dcIndex].items[tab.dbIndex].label, table);
     },
     async loadTableData(tab, table) {
       tab.dataChange = false;
       tab.wait = true;
-      tab.data_index = tab.data_index || 1;
-      tab.data_size = tab.data_size || 500;
+      tab.data_index = tab.data_index;
+      tab.data_size = tab.data_size;
       try {
         let page = await databaseConnecton.getTableDataPage(this.dbc[tab.dcIndex], this.dbc[tab.dcIndex].items[tab.dbIndex].label, table, tab.data_index, tab.data_size, (e) => {
           tab.sql = e;
@@ -658,7 +674,7 @@ export default {
         this.error(e);
       }
     },
-    treeNodeFindById(id) {
+    getNodeDataPathById(id) {
       let root = [{ path: [], items: this.dbc }];
       let find = null;
       do {
@@ -667,7 +683,7 @@ export default {
           let k = 0;
           for (let node of obj.items) {
             if (node.id == id) {
-              find = obj.path.concat([k]);
+              find = { path: obj.path.concat([k]), data: node };
               break
             } else {
               list.push({ path: obj.path.concat([k]), items: node.items })
@@ -691,7 +707,7 @@ export default {
         return;
       }
       let dcIndex, dbIndex;
-      let find = this.treeNodeFindById(id);
+      let find = this.getNodeDataPathById(id).path;
       let level = 1;
       for (let k of find) {
         if (level == 1) {
@@ -799,7 +815,7 @@ export default {
         tab.table = null;
         if (execute) {
           tab.dataType = 0;
-          let cn = await this.getConnection(dc.dbType, dc.info, db.label);
+          let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db.label);
           tab.db = cn;
           tab.runId = await cn.executeAsync(sql, null, (count) => {
             this.sqlRunEnd(tab);
@@ -810,7 +826,7 @@ export default {
           });
         } else {
           tab.dataType = 1;
-          let cn = await this.getConnection(dc.dbType, dc.info, db.label);
+          let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db.label);
           tab.db = cn;
           let match = /^select\s+\*\s+from\s+(\w+).*$/i.exec(sql)
           if (match && match.length) {
@@ -979,7 +995,7 @@ export default {
     async saveResult(tab) {
       let dc = this.dbc[tab.dcIndex];
       tab.wait = true;
-      let cn = await this.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
+      let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
       tab.db = cn;
       tab.runId = await cn.executeAsync(tab.explain, null, () => {
         cn.close();
@@ -1010,7 +1026,7 @@ export default {
     async refreshResult(tab) {
       let dc = this.dbc[tab.dcIndex];
       tab.wait = true;
-      let cn = await this.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
+      let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
       tab.explain = tab.sql;
       tab.runId = cn.selectAsync(tab.sql, null, (rs) => {
         cn.close();
@@ -1037,7 +1053,7 @@ export default {
       }
     },
     addTable(node) {
-      let path = this.treeNodeFindById(node.data.id);
+      let path = this.getNodeDataPathById(node.data.id).path;
       let dbc = this.dbc[path[0]];
       let tableTemplate = databaseTemplate[dbc.dbType];
       this.tabs.push({
@@ -1053,14 +1069,13 @@ export default {
       this.tabIndex = this.tabs.length - 1;
     },
     designTable(node) {
-      let path = this.treeNodeFindById(node.data.id);
+      let path = this.getNodeDataPathById(node.data.id).path;
       let dbc = this.dbc[path[0]];
-      let tableTemplate = databaseTemplate[dbc.dbType];
       this.tabs.push({
         id: Date.now(),
         type: 2,
         name: node.data.label,
-        subtabs: tableTemplate.table.metatable,
+        subtabs: [],
         table: node.data.label,
         dbc,
         db: dbc.items[path[1]],
@@ -1070,8 +1085,40 @@ export default {
       this.tabIndex = this.tabs.length - 1;
     },
     addNewTable(item) {
-      item.name = item.label;
-      this.refreshTableByDB(dbc[item.dcIndex], dbc[item.dcIndex].items[item.dbIndex])
+      item.name = item.table;
+      this.refreshTableByDB(item.dbc, item.db)
+    },
+    renameTable(tableData) {
+      tableData.$rename = true;
+      tableData.$name = tableData.label;
+      setTimeout(() => {
+        this.$refs.rename.focus();
+      }, 500);
+    },
+    async renameClose(node) {
+      node.data.$rename = false;
+      if (node.data.$name == node.data.label) return;
+      let dbNode = this.getDBNodeByNode(node);
+      await databaseConnecton.renameTable(dbNode.parent.data, dbNode.data.label, node.data.label, node.data.$name);
+      node.data.label = node.data.$name;
+      this.$refs.tree.setData(this.dbc);
+    },
+    renameKeyDown(e, node) {
+      if (e.key == 'Enter') {
+        this.renameClose(node);
+      }
+    },
+    treeShortcutKey(e) {
+      let selectId = this.$refs.tree.getCurrentKey();
+      if (e.key == 'F2') {
+        if (selectId == null) return;
+        let info = this.getNodeDataPathById(selectId);
+        if (info.path.length == 4)
+          this.renameTable(info.data);
+      } else if (e.ctrlKey && e.key.toLowerCase() == 'c') {
+        if (selectId == null) return;
+        navigator.clipboard.writeText(this.getNodeDataPathById(selectId).data.label);
+      }
     }
   }
 }

@@ -57,14 +57,20 @@ export default {
             let indexs = await dc.select(`SHOW INDEX FROM \`${dbName}\`.\`${tableName}\``)
             let foreign_keys = await dc.select(`select * from information_schema.REFERENTIAL_CONSTRAINTS where CONSTRAINT_SCHEMA='${dbName}' and TABLE_NAME='${tableName}'`);
             let foreign_key_columns = await dc.select(`select * from information_schema.KEY_COLUMN_USAGE where CONSTRAINT_SCHEMA='${dbName}' and TABLE_NAME='${tableName}'`)
-            return { name: info.TABLE_NAME, comment: info.TABLE_COMMENT, ENGINE: info.ENGINE, TABLE_COLLATION: info.TABLE_COLLATION, indexs, foreign_keys, foreign_key_columns }
+            let triggers = await dc.select(`select * from information_schema.TRIGGERS where TRIGGER_SCHEMA='${dbName}' and EVENT_OBJECT_TABLE='${tableName}'`)
+            return { name: info.TABLE_NAME, comment: info.TABLE_COMMENT, ENGINE: info.ENGINE, TABLE_COLLATION: info.TABLE_COLLATION, indexs, foreign_keys, foreign_key_columns, triggers }
         })
         table.columns = await this.getTableColumns(dbc, dbName, tableName);
         return table;
     },
+    renameTable(dbc, dbName, tableName, targetName) {
+        return this.use(dbc, dbName, async (dc) => {
+            await dc.execute('RENAME TABLE `' + tableName + '` TO `' + targetName + '`');
+        })
+    },
     getTableColumns(dbc, dbName, tableName) {
         return this.use(dbc, async (dc) => {
-            let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA='${dbName}' and TABLE_NAME='${tableName}'`);
+            let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA = '${dbName}' and TABLE_NAME = '${tableName}'`);
             let columns = []
             for (let row of tableCoumns) {
                 let k = row.COLUMN_TYPE.indexOf('(');
@@ -126,12 +132,12 @@ export default {
         })
     },
     getTableDataPage(dbc, dbName, table, page, size, sqlCallback) {
-        let sql = `select * from ${table} limit ${(page - 1) * size},${size}`;
+        let sql = `select * from ${ table } limit ${(page - 1) * size}, ${ size }`;
         sqlCallback && sqlCallback(sql);
         return this.use(dbc, dbName, async (dc) => {
             return {
                 data: await dc.select(sql),
-                total: (await dc.select(`select count(*) count from ${table}`))[0].count
+                total: (await dc.select(`select count(*) count from ${ table }`))[0].count
             }
         })
     }

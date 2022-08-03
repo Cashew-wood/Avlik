@@ -86,5 +86,6 @@ export default {
     table_name:'表名',
     tables:'表',
     views:'视图',
-    design_table:'设计表'
+    design_table:'设计表',
+    rename:'重命名'
 }
