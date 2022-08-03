@@ -1,5 +1,5 @@
 <template>
-    <div class="new-table" ref="newTable">
+    <div class="new-table" ref="newTable" v-if="item.subtabs">
         <div class="new-table-tool">
             <div class="item" @click="save">
                 <Finished class="save icon" />
@@ -83,11 +83,14 @@
                     </div>
                 </div>
             </el-tab-pane>
-            <el-tab-pane :label="global.locale.comment">
-                <el-input class="comment" v-model="item.comment" type="textarea" />
+            <el-tab-pane v-if="item.subtabs.length" :label="global.locale.comment">
+                <el-input class="comment" v-model="item.comment" type="textarea" resize="none"
+                    :input-style="{ 'height': '100%' }" style="height:100%" />
             </el-tab-pane>
-            <el-tab-pane :label="global.locale.sql_preview">
-                <Codemirror ref="editor" v-model:value="sql" :options="readOnlyOptions" height="100%"></Codemirror>
+            <el-tab-pane v-if="item.subtabs.length" :label="global.locale.sql_preview">
+                <div class="scroll">
+                    <Codemirror ref="editor" v-model:value="sql" :options="readOnlyOptions" height="100%"></Codemirror>
+                </div>
             </el-tab-pane>
         </el-tabs>
         <el-dialog v-model="defineNewDialog" :title="global.locale.define_new" width="50%">
@@ -159,7 +162,8 @@ export default {
                 indentUnit: 2,
                 foldGutter: true,
                 styleActiveLine: true,
-                readOnly: true
+                readOnly: true,
+                scrollbarStyle: 'overlay'
             },
             cmOptions: {
                 mode: "text/x-mysql",
@@ -189,12 +193,15 @@ export default {
     },
     mounted() {
         dbTemplate = databaseTemplate[this.item.dbc.dbType];
+        this.item.subtabs = new dbTemplate.table.Metatable()
+
         dbTemplate.table.onCreate(this.item);
         for (let subtab of this.item.subtabs) {
             if (!subtab.data.length)
                 this.addNewTableRow(subtab.columns, subtab.data);
         }
     },
+    emits: ['add', 'design'],
     methods: {
         addNewTableRow(columns, data, insert) {
             let emptyRow = {};
@@ -294,32 +301,46 @@ export default {
             this.defineNewValue.splice(i, 1);
         },
         tabChange(index) {
+            index = parseInt(index);
             try {
-                index = parseInt(index);
                 if (index == 5) {
-                    this.sql = dbTemplate.table.create(this.item);
-                    console.log(this.sql,this.item)
+                    if (this.item.design) {
+                        this.sql = dbTemplate.table.update(this.item);
+                    } else {
+                        this.sql = dbTemplate.table.create(this.item);
+                    }
                 }
                 if (this.item.subtabs[index])
                     for (let column of this.item.subtabs[index].columns) {
                         column.onChangeTab && column.onChangeTab(this.item, this.item.subtabs[index], column);
                     }
             } catch (e) {
-                console.error(e)
+                console.error(e);
             }
         },
         save() {
+            if(this.item.design){
+                this.saveTable();
+                return;
+            }
             this.tableNameVisible = true;
         },
         saveTable() {
             this.tableNameVisible = false;
-            this.sql = dbTemplate.table.create(this.item);
+            if (this.item.design) {
+                this.sql = dbTemplate.table.update(this.item);
+            } else {
+                this.sql = dbTemplate.table.create(this.item);
+            }
             let instance = this.$loading({ target: this.$refs.newTable, fullscreen: false })
             try {
                 databaseConnecton.use(this.item.dbc, this.item.db.label, async (dc) => {
                     try {
                         await dc.execute(this.sql);
-                        this.$emit('add',this.item.table);
+                        this.$emit(this.item.design ? 'design' : 'add', this.item.table);
+                        this.item.subtabs = new dbTemplate.table.Metatable()
+                        this.item.design = true;
+                        dbTemplate.table.onCreate(this.item);
                         instance.close();
                     } catch (e) {
                         console.error(e)
