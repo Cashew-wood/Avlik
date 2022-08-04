@@ -465,7 +465,7 @@ export default function (template) {
                 sql += 'ADD ' + this.$foreignKeySQL(row) + ',\n';
             }
             if(tab.comment!=tab.$tableInfo.comment){
-                sql+=`COMMENT = '${tab.$tableInfo.comment}',\n`
+                sql+=`COMMENT = '${tab.comment}',\n`
             }
             if (len != sql.length) {
                 sql = sql.substring(0, sql.length - 2) + ';\n';

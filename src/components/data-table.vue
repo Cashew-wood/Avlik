@@ -1,6 +1,7 @@
 <template>
     <el-table :data="item.data" class="table" @cell-click="cellClick" border highlight-current-row
-        :row-class-name="tableRowClassName" @current-change="handleCurrentChange(item, $event)" @keydown="stopTab">
+        :row-class-name="tableRowClassName" @current-change="handleCurrentChange(item, $event)" @keydown="tableDownKey"
+        tabindex="0">
         <el-table-column align="center" type="index" fixed width="50" />
         <el-table-column v-for="(column, k) in item.columns" :kye="k" :prop="column.name" :label="column.name"
             :width="130" align="center">
@@ -11,10 +12,12 @@
                     :data="getColumnData(column)" @hide="tableEditBoxHide(item, scope.row, column.name)"
                     @next="editBoxNextFocus">
                 </TableEdit>
-                <span class="defaultText" :class="{ 'null': scope.row[column.name] == null }" v-else>{{
-                        dataFormat(dbTemplate.dataType[column.type] && dbTemplate.dataType[column.type].jsType,
-                            scope.row[column.name])
-                }}</span>
+                <span class="defaultText" tabindex="0" @keydown="textDownKey($event, scope.row, column.name)"
+                    :class="{ 'null': scope.row[column.name] == null, 'select': scope.row[hiddenFieldPrefix + 'selectCell'] == column.name }"
+                    v-else>{{
+                            dataFormat(dbTemplate.dataType[column.type] && dbTemplate.dataType[column.type].jsType,
+                                scope.row[column.name])
+                    }}</span>
             </template>
         </el-table-column>
     </el-table>
@@ -27,7 +30,8 @@ export default {
             hiddenFieldHasEdit: "__$$edit$",
             hiddenFieldPrefix: "__$",
             hiddenFieldState: "__$$state$",
-            editFieldPosition: null
+            editFieldPosition: null,
+            selectCell: null
         };
     },
     props: {
@@ -41,7 +45,6 @@ export default {
     },
     methods: {
         tableEditBoxHide(item, row, columnName) {
-            console.log('hide', columnName)
             if (row[this.hiddenFieldHasEdit] == columnName)
                 row[this.hiddenFieldHasEdit] = null;
             let diff = row[this.hiddenFieldPrefix + columnName] != row[columnName];
@@ -73,7 +76,11 @@ export default {
             }
         },
         cellClick(row, column, dom) {
-            console.log(row, column)
+            if (this.selectCell) {
+                this.selectCell[this.hiddenFieldPrefix + 'selectCell'] = null;
+            }
+            row[this.hiddenFieldPrefix + 'selectCell'] = column.label;
+            this.selectCell = row;
             row[this.hiddenFieldHasEdit] = column.label;
             this.editFieldPosition = { row, column: column.label }
         },
@@ -101,10 +108,27 @@ export default {
                 this.editFieldPosition = { row: this.item.data[row], column: find }
             }, 10);
         },
-        stopTab(e) {
+        tableDownKey(e) {
             if (e.code == 'Tab') {
                 e.stopPropagation();
                 e.preventDefault();
+            } else if (e.ctrlKey && e.key.toLowerCase() == 'c') {
+                let s = '';
+                let row = this.item.data[this.item.selected];
+                if (row[this.hiddenFieldPrefix + 'selectCell']) return;
+                for (let key in row) {
+                    if (key.startsWith(this.hiddenFieldPrefix)) continue;
+                    s += (row[key] || null) + '\t';
+                }
+                if (s.length) {
+                    s = s.substring(0, s.length - 1);
+                }
+                navigator.clipboard.writeText(s);
+            }
+        },
+        textDownKey(e, row, columnName) {
+            if (e.ctrlKey && e.key.toLowerCase() == 'c') {
+                navigator.clipboard.writeText(row[columnName]);
             }
         },
         getColumnData(column) {
@@ -179,6 +203,14 @@ export default {
 
         &.null {
             color: var(--el-color-info-light-7)
+        }
+
+        &:focus {
+            outline: none;
+        }
+
+        &.select {
+            border: 1px solid var(--el-color-info-light-5);
         }
     }
 }

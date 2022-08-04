@@ -9,7 +9,7 @@
           <el-dropdown-menu>
             <el-dropdown-item v-for="(sub, index) in item.items" :divided="sub.divided" @click="menuItem(item, sub)"
               :icon="sub.icon">{{
-                  sub.name
+              sub.name
               }}
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -156,8 +156,8 @@
         <div v-if="contextmenu.type == 0">
           <el-dropdown-menu v-if="contextmenu.data.level == 1">
             <el-dropdown-item @click="switchCNStatus(contextmenu.data)">{{ contextmenu.data.data.items.length ?
-                global.locale.close_connection :
-                global.locale.open_connection
+            global.locale.close_connection :
+            global.locale.open_connection
             }}
             </el-dropdown-item>
             <el-dropdown-item @click="editCN(contextmenu.data)">{{ global.locale.edit_connection }}</el-dropdown-item>
@@ -167,8 +167,8 @@
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 2">
             <el-dropdown-item @click="switchDBStatus(contextmenu.data)">{{ contextmenu.data.data.items.length ?
-                global.locale.close_database :
-                global.locale.open_database
+            global.locale.close_database :
+            global.locale.open_database
             }}
             </el-dropdown-item>
             <el-dropdown-item @click="deleteDB(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
@@ -796,6 +796,7 @@ export default {
       let dc = this.dbc[tab.dcIndex];
       let db = dc.items[tab.dbIndex];
       tab.start = Date.now();
+      tab.data = null;
       tab.timeId = setInterval(() => {
         tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
       }, 50);
@@ -874,8 +875,8 @@ export default {
     },
     setSqlErrorResult(tab, e) {
       this.error(e);
-      tab.data = e;
       tab.dataType = 0;
+      tab.data = e;
     },
     getRow0Columns(rs) {
       let columns = []
