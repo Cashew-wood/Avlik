@@ -16,7 +16,7 @@ export default {
           const setup = () => {
                this.global.device = this.lazy(window.native.device);
                native.window.icon=icon;
-               native.window.title='Avcat'
+               native.window.title='Avlik'
                window.native.app.executablePath.then((e) => {
                     this.global.executablePath = e;
                });
