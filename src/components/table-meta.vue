@@ -60,28 +60,26 @@
                         </el-table>
                     </div>
                 </div>
-                <div class="scroll-setting setting" v-if="subtab.panel && subtab.selectRow">
-                    <div class="scroll">
-                        <el-scrollbar :class="{ 'full': subtab.panel.full }">
-                            <el-form :label-position="subtab.panel.direction || 'right'">
-                                <template v-for="(column, i) in subtab.panel.form">
-                                    <el-form-item :label="global.locale[column.name]" :label-width="150">
-                                        <Codemirror v-if="column.type == 'code'" ref="editor"
-                                            v-model:value="subtab.selectRow[column.name]" class="form-value"
-                                            :options="cmOptions"></Codemirror>
-                                        <TableEdit v-else :autoFocus="false" :type="column.type"
-                                            :style="{ 'width': column.width || '' }"
-                                            v-model="subtab.selectRow[column.name]" :data="column.$items"
-                                            @change="column.onChange && column.onChange(item, subtab, column, $event)"
-                                            class="form-value" />
-                                        <el-button class="link" v-if="column.multiple" link type="primary"
-                                            @click="openDefineNewDialog(subtab, column)">...</el-button>
-                                    </el-form-item>
-                                </template>
-                            </el-form>
-                        </el-scrollbar>
-                    </div>
-                </div>
+                <Fixed class="setting" v-if="subtab.panel && subtab.selectRow">
+                    <el-scrollbar :class="{ 'full': subtab.panel.full }">
+                        <el-form :label-position="subtab.panel.direction || 'right'">
+                            <template v-for="(column, i) in subtab.panel.form">
+                                <el-form-item :label="global.locale[column.name]" :label-width="150">
+                                    <Codemirror v-if="column.type == 'code'" ref="editor"
+                                        v-model:value="subtab.selectRow[column.name]" class="form-value"
+                                        :options="cmOptions"></Codemirror>
+                                    <TableEdit v-else :autoFocus="false" :type="column.type"
+                                        :style="{ 'width': column.width || '' }" v-model="subtab.selectRow[column.name]"
+                                        :data="column.$items"
+                                        @change="column.onChange && column.onChange(item, subtab, column, $event)"
+                                        class="form-value" />
+                                    <el-button class="link" v-if="column.multiple" link type="primary"
+                                        @click="openDefineNewDialog(subtab, column)">...</el-button>
+                                </el-form-item>
+                            </template>
+                        </el-form>
+                    </el-scrollbar>
+                </Fixed>
             </el-tab-pane>
             <el-tab-pane v-if="item.subtabs.length" :label="global.locale.comment">
                 <el-input class="comment" v-model="item.comment" type="textarea" resize="none"
@@ -150,6 +148,7 @@ import 'codemirror/addon/fold/brace-fold'
 import 'codemirror/addon/fold/comment-fold'
 import 'codemirror/addon/scroll/simplescrollbars.js'
 import 'codemirror/addon/scroll/simplescrollbars.css'
+import Fixed from './fixed.vue';
 let dbTemplate = null;
 export default {
     data() {
@@ -234,7 +233,6 @@ export default {
             if (row[this.hiddenFieldHasEdit] == columnName)
                 row[this.hiddenFieldHasEdit] = null;
             let diff = row[this.hiddenFieldPrefix + columnName] != row[columnName];
-            subtab.dataChange = subtab.dataChange || diff;
             if (diff) {
                 if (!row[this.hiddenFieldState]) row[this.hiddenFieldState] = "update";
                 let column = subtab.columns[subtab.columns.findIndex(e => e.name == columnName)]
@@ -319,7 +317,7 @@ export default {
             }
         },
         save() {
-            if(this.item.design){
+            if (this.item.design) {
                 this.saveTable();
                 return;
             }
@@ -378,7 +376,7 @@ export default {
         }
 
     },
-    components: { TableEdit, Codemirror }
+    components: { TableEdit, Codemirror, Fixed }
 }
 </script>
 <style lang="scss">
@@ -398,11 +396,6 @@ export default {
     flex: 1;
     position: relative;
 }
-
-.scroll-setting {
-    position: relative;
-}
-
 .setting {
     height: 30% !important;
     min-height: 130px;

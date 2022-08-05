@@ -33,7 +33,7 @@ export default {
     open_table: 'Open Table',
     close_table: 'Close Table',
     new_table: 'New Table',
-    duplicate_table: 'Duplicate Table',
+    duplicate: 'Duplicate',
     not_selected_db: 'Please select a database first',
     run: 'Run',
     stop: 'Stop',
@@ -87,5 +87,6 @@ export default {
     tables:'Tables',
     views:'Views',
     design_table:'Design Table',
-    rename:'Rename'
+    rename:'Rename',
+    copy_create_sql:'Copy-SQL(Insert)'
 }

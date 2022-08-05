@@ -138,14 +138,28 @@ export default function (template) {
             tab.characterList = await databaseConnecton.loadCharacter(tab.dbc, tab.db.label)
             if (tab.design) {
                 let table = await databaseConnecton.getTableInfo(tab.dbc, tab.db.label, tab.table);
-                console.log(table)
+                let tableSQL = (await databaseConnecton.getTableSQL(tab.dbc, tab.db.label, tab.table)).split('\n');
                 tab.comment = table.comment;
                 tab.subtabs[0].data = [];
                 for (let column of table.columns) {
                     let pri = table.indexs[table.indexs.findIndex(e => e.Column_name == column.name && e.Key_name == 'PRIMARY')];
+                    let columnSQL = tableSQL[tableSQL.findIndex(e => e.trim().startsWith('`' + column.name + '`'))]
+                    let defaultValueIndex = columnSQL.indexOf(' DEFAULT ');
+                    let defaultValue = null;
+                    if (defaultValueIndex > -1) {
+                        let end;
+                        for (let i = defaultValueIndex + 9; i < columnSQL.length; i++) {
+                            if (columnSQL[i] == ' ' || columnSQL[i] == ',') {
+                                end = i;
+                                break;
+                            }
+                        }
+                        defaultValue = columnSQL.substring(defaultValueIndex + 9, end);
+                    }
                     tab.subtabs[0].data.push({
                         name: column.name, data_type: column.type, length: column.length, decimals: column.decimals, not_null: !column.isNullable,
-                        key: column.key, comment: column.comment, default_value: column.defaultValue, unsigned: column.unsigned, value: column.value,
+                        key: column.key, comment: column.comment,
+                        default_value: defaultValue, unsigned: column.unsigned, value: column.value,
                         auto_increment: column.EXTRA.indexOf('auto_increment') > -1, update_current_timestamp: column.EXTRA.indexOf('CURRENT_TIMESTAMP') > -1,
                         key_length: pri && pri.Sub_part, character: column.characterSet, collation: column.collation
                     })
@@ -205,9 +219,6 @@ export default function (template) {
                 }
                 tab.$tableInfo = { comment: tab.comment, datas: JSON.parse(JSON.stringify([tab.subtabs[0].data, tab.subtabs[1].data, tab.subtabs[2].data, tab.subtabs[3].data])) };
             }
-        },
-        switchToUpdate() {
-
         },
         $columnSQL(row) {
             let sql = '`' + row.name + '` ' + row.data_type;
@@ -464,8 +475,8 @@ export default function (template) {
             for (let row of foreign_keys) {
                 sql += 'ADD ' + this.$foreignKeySQL(row) + ',\n';
             }
-            if(tab.comment!=tab.$tableInfo.comment){
-                sql+=`COMMENT = '${tab.comment}',\n`
+            if (tab.comment != tab.$tableInfo.comment) {
+                sql += `COMMENT = '${tab.comment}',\n`
             }
             if (len != sql.length) {
                 sql = sql.substring(0, sql.length - 2) + ';\n';

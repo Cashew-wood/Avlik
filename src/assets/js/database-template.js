@@ -1,5 +1,7 @@
 import MysqlTable from "./mysql-table";
-const mysqTemplate={
+import DBTemplateCommon from "./db-template-common";
+import global_constant from "./global_constant";
+const mysqlTemplate = {
     name: 'MySQL',
     icon: 'icon-mysql',
     alias: 'mysql',
@@ -201,9 +203,37 @@ const mysqTemplate={
             default_value: 'text'
         }
     },
-    dbItems: ['tables']
-}
-mysqTemplate.table=new MysqlTable(mysqTemplate);
-const templates = [mysqTemplate]
+    dbItems: ['tables'],
+    isQuery(sql) {
+        let p = sql.indexOf(' ');
+        if (p > -1) {
+            let one = sql.substring(0, p);
+            if (one.toLowerCase() == 'select' || one.toLowerCase() == 'show') {
+                return true;
+            }
+        }
+        return false;
+    },
 
+
+}
+mysqlTemplate.table = new MysqlTable(mysqlTemplate);
+Object.assign(mysqlTemplate,new DBTemplateCommon(mysqlTemplate))
+const templates = [mysqlTemplate]
+for (let template of templates) {
+    for (let key in template.dataValidate) {
+        template.dataValidate[key] = [validate(template)];
+    }
+}
+function validate(template) {
+    return {
+        trigger: 'blur', validator: (rule, value, callback) => {
+            if (!value) {
+                callback(new Error(template.data[rule.field].name + ' ' + global_constant.locale.required))
+                return false;
+            }
+            return true;
+        }
+    }
+}
 export default templates;

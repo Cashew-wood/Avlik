@@ -17,21 +17,37 @@ export default {
     data() {
         return {
             title: '',
-            state: ''
+            state: '',
+            rect: null
         }
     },
     methods: {
-        setSate(state) {
+        async setSate(state) {
             this.state = state;
             if (state == 'close') {
                 native.window.close();
-                return;
+            } else if (state == 'max') {
+                this.rect = { left: await native.window.left, top: await native.window.top, width: await native.window.width, height: await native.window.height }
+                let workarea = await this.global.device.screenWorkArea;
+                native.window.resize = false;
+                native.window.left = workarea.left;
+                native.window.top = workarea.top;
+                native.window.width = workarea.width;
+                native.window.height = workarea.height;
+            } else if (state == 'normal') {
+                native.window.left = this.rect.left;
+                native.window.top = this.rect.top;
+                native.window.width = this.rect.width;
+                native.window.height = this.rect.height;
+                native.window.resize = true;
+            } else {
+                native.window.state = state;
             }
-            native.window.state = state;
         }
     },
     async mounted() {
         this.title = await native.window.title;
+
     },
 }
 </script>

@@ -33,6 +33,18 @@ export default {
     getConnectionString(connectionInfo) {
         return `Server=${connectionInfo.host};Port=${connectionInfo.port}${connectionInfo.database ? ';Database=' + connectionInfo.database : ''};Uid=${connectionInfo.user};Pwd=${connectionInfo.pwd};`
     },
+    databaseList(dbc) {
+       return this.use(dbc, async (db) => {
+            let dbs = await db.select('show databases');
+            let list = []
+            for (let obj of dbs) {
+                list.push({
+                    name: obj.Database
+                })
+            }
+            return list;
+        })
+    },
     dropTable(dbc, dbName, table) {
         return this.use(dbc, dbName, async (db) => {
             await db.execute('drop table ' + table);
@@ -63,10 +75,21 @@ export default {
         table.columns = await this.getTableColumns(dbc, dbName, tableName);
         return table;
     },
+    getTableSQL(dbc, dbName, tableName) {
+        return this.use(dbc, dbName, async (dc) => {
+            return (await dc.select('show create table `' + tableName + '`'))[0]['Create Table'];
+        })
+    },
     renameTable(dbc, dbName, tableName, targetName) {
         return this.use(dbc, dbName, async (dc) => {
             await dc.execute('RENAME TABLE `' + tableName + '` TO `' + targetName + '`');
         })
+    },
+    async duplicateTable(dbc, dbName, tableName, targetName) {
+        let tableSQL = await this.getTableSQL(dbc, dbName, tableName);
+        return await this.use(dbc, dbName, (dc) => {
+            return dc.execute(tableSQL.replace('`' + tableName + '`', '`' + targetName + '`'));
+        });
     },
     getTableColumns(dbc, dbName, tableName) {
         return this.use(dbc, async (dc) => {
@@ -132,12 +155,12 @@ export default {
         })
     },
     getTableDataPage(dbc, dbName, table, page, size, sqlCallback) {
-        let sql = `select * from ${ table } limit ${(page - 1) * size}, ${ size }`;
+        let sql = `select * from ${table} limit ${(page - 1) * size}, ${size}`;
         sqlCallback && sqlCallback(sql);
         return this.use(dbc, dbName, async (dc) => {
             return {
                 data: await dc.select(sql),
-                total: (await dc.select(`select count(*) count from ${ table }`))[0].count
+                total: (await dc.select(`select count(*) count from ${table}`))[0].count
             }
         })
     }

@@ -16,7 +16,7 @@ export default {
           const setup = () => {
                this.global.device = this.lazy(window.native.device);
                native.window.icon=icon;
-               native.window.title='DBM-Mysql'
+               native.window.title='Avcat'
                window.native.app.executablePath.then((e) => {
                     this.global.executablePath = e;
                });

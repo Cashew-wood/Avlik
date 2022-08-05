@@ -9,7 +9,7 @@
           <el-dropdown-menu>
             <el-dropdown-item v-for="(sub, index) in item.items" :divided="sub.divided" @click="menuItem(item, sub)"
               :icon="sub.icon">{{
-              sub.name
+                  sub.name
               }}
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -24,7 +24,7 @@
         </div>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item v-for="(item, i) in db" :key="i" @click="openConnectionDialog(i)">{{ item.name }}
+            <el-dropdown-item v-for="(item, i) in dbTemplates" :key="i" @click="openConnectionDialog(i)">{{ item.name }}
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -35,15 +35,15 @@
       </div>
     </div>
     <div class="main">
-      <div class="left" v-show="show_navigation">
-        <div class="dbc">
-          <div class="fixed" ref="main_left" :data-type="dbcHeight">
-            <el-tree-v2 ref="tree" :data="dbc" v-if="dbcHeight"
-              :props="{ value: 'id', label: 'label', children: 'items' }" highlight-current :height="dbcHeight"
-              @node-click="nodeClick" @node-contextmenu="nodeMenu" @keydown="treeShortcutKey">
+      <div class="left" v-show="show_navigation" ref="main_left">
+        <Fixed class="dbc">
+          <template #default="{ height }">
+            <el-tree-v2 ref="tree" :data="dbc" :props="{ value: 'id', label: 'label', children: 'items' }"
+              highlight-current :height="height" @node-click="nodeClick" @node-contextmenu="nodeMenu"
+              @keydown="treeShortcutKey">
               <template #default="{ node }">
                 <span v-if="node.level == 1" class="prefix iconfont cn"
-                  :class="[db[node.data.dbType].icon, node.data.items.length ? 'open' : '']"></span>
+                  :class="[dbTemplates[node.data.dbType].icon, node.data.items.length ? 'open' : '']"></span>
                 <span v-if="node.level == 2" class="prefix iconfont db icon-jurassic_data"></span>
                 <template v-if="node.level > 2">
                   <img v-if="node.data.type == 'tables'" class="prefix icon" src="../assets/img/tree-table.png" />
@@ -56,8 +56,8 @@
                   style="position: absolute;left:0;right: 0;top: 0;bottom: 0;" @dblclick="doubleItem(node)"></div>
               </template>
             </el-tree-v2>
-          </div>
-        </div>
+          </template>
+        </Fixed>
         <div class="floor">
         </div>
       </div>
@@ -66,8 +66,7 @@
           <el-tab-pane v-for="(item, i) in tabs" :key="i" :label="item.name" class="tab-panel" :name="i">
             <div class="table_panel" v-if="item.type == 0">
               <div class="scroll">
-                <DataTable :item="item" :generateSQL="generateSQL" :dbTemplate="db[item.dcIndex]" :addRow="addRow">
-                </DataTable>
+                <DataTable :item="item" :loadTableData="loadTableData"></DataTable>
               </div>
             </div>
             <div v-if="item.type == 1" class="code">
@@ -75,7 +74,7 @@
                 <el-select v-model="item.dcIndex" class="m-2" placeholder="Select">
                   <el-option v-for="(item, i) in dbc" :key="item.id" :label="item.label" :value="i" />
                 </el-select>
-                <el-select v-model="item.dbIndex" class="m-2" placeholder="Select">
+                <el-select v-model="item.dbIndex" class="m-2" placeholder="Select" @change="selectDB(item)">
                   <el-option v-if="item.dcIndex != null" v-for="(item, i) in dbc[item.dcIndex].items" :key="item.id"
                     :label="item.label" :value="i" />
                 </el-select>
@@ -92,34 +91,12 @@
               <div class="result" v-if="item.data">
                 <div class="scroll">
                   <div v-if="item.dataType == 0" class="string">{{ item.data }}</div>
-                  <DataTable v-if="item.dataType == 1" :item="item" :generateSQL="generateSQL"
-                    :dbTemplate="db[item.dcIndex]" :addRow="addRow"></DataTable>
+                  <DataTable v-if="item.dataType == 1" :item="item"></DataTable>
                 </div>
               </div>
             </div>
             <TableMeta v-if="item.type == 2" :item="item" @add="addNewTable(item)">
             </TableMeta>
-            <div class="table-opt-tool" v-if="(item.dataType == 1 && item.data) || item.type == 0">
-              <div class="to-left">
-                <span class="icon iconfont icon-zengjia" :class="{ 'disable': item.table == null }"
-                  @click="item.table != null && addRow(item)"></span>
-                <span :class="{ 'disable': item.selected == null || item.table == null }"
-                  class="icon iconfont icon-jian"
-                  @click="item.selected != null && item.table != null && removeRow(item)"></span>
-                <span :class="{ 'disable': !item.dataChange }" class="icon iconfont icon-duihao"
-                  @click="item.dataChange && saveResult(item)"></span>
-                <span :class="{ 'disable': !item.dataChange }" class="icon iconfont icon-cha"
-                  @click="item.dataChange && resetResult(item)"></span>
-                <span class="icon iconfont icon-recover" @click="refreshResult(item)"></span>
-                <span :class="{ 'disable': !item.wait }" class="icon iconfont icon-stop"
-                  @click="item.wait && stopSQL(item)"></span>
-              </div>
-              <div class="to-right" v-if="item.type == 0">
-                <el-pagination layout="total, prev, jumper, next" :page-size="item.data_size"
-                  :current-page="item.data_index" :total="item.data_total" small
-                  @current-change="pagingChange(item, $event)" />
-              </div>
-            </div>
             <div class="floor">
               <div class="floor-left">
                 {{ item.explain }}
@@ -131,13 +108,11 @@
           </el-tab-pane>
         </el-tabs>
       </div>
-
     </div>
-
     <el-dialog v-model="connectionDialog.visible" :title="global.locale.new_connection" width="50%"
       ref="connectionDialog" custom-class="connection-dialog">
-      <el-form ref="NCF" :model="connection" :rules="db[connectionDialog.dbType].dataValidate" border>
-        <el-form-item v-for="(item, key) in db[connectionDialog.dbType].data" :label="item.name" :prop="key"
+      <el-form ref="NCF" :model="connection" :rules="dbTemplates[connectionDialog.dbType].dataValidate" border>
+        <el-form-item v-for="(item, key) in dbTemplates[connectionDialog.dbType].data" :label="item.name" :prop="key"
           :label-width="connectionDialog.labelWidth">
           <el-input :type="item.type || 'text'" v-model="connection[key]" autocomplete="off" maxlength="30" />
         </el-form-item>
@@ -156,8 +131,8 @@
         <div v-if="contextmenu.type == 0">
           <el-dropdown-menu v-if="contextmenu.data.level == 1">
             <el-dropdown-item @click="switchCNStatus(contextmenu.data)">{{ contextmenu.data.data.items.length ?
-            global.locale.close_connection :
-            global.locale.open_connection
+                global.locale.close_connection :
+                global.locale.open_connection
             }}
             </el-dropdown-item>
             <el-dropdown-item @click="editCN(contextmenu.data)">{{ global.locale.edit_connection }}</el-dropdown-item>
@@ -167,8 +142,8 @@
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 2">
             <el-dropdown-item @click="switchDBStatus(contextmenu.data)">{{ contextmenu.data.data.items.length ?
-            global.locale.close_database :
-            global.locale.open_database
+                global.locale.close_database :
+                global.locale.open_database
             }}
             </el-dropdown-item>
             <el-dropdown-item @click="deleteDB(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
@@ -180,6 +155,10 @@
           <el-dropdown-menu v-if="contextmenu.data.level == 4">
             <el-dropdown-item @click="designTable(contextmenu.data)">{{ global.locale.design_table }}</el-dropdown-item>
             <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
+            <el-dropdown-item divided @click="copyCreateSQL(contextmenu.data)">{{ global.locale.copy_create_sql }}
+            </el-dropdown-item>
+            <el-dropdown-item @click="duplicateCreateSQL(contextmenu.data)">{{ global.locale.duplicate }}
+            </el-dropdown-item>
             <el-dropdown-item divided @click="renameTable(contextmenu.data.data)">{{ global.locale.rename }}
             </el-dropdown-item>
             <el-dropdown-item divided @click="deleteTable(contextmenu.data)">{{ global.locale.delete }}
@@ -217,20 +196,18 @@ import TableEdit from '../components/table-edit.vue';
 import databaseTemplate from '../assets/js/database-template';
 import databaseConnecton from '../assets/js/database-connecton';
 import TableMeta from '../components/table-meta.vue';
+import Fixed from '../components/fixed.vue';
 export default {
   data() {
     return {
-      hiddenFieldPrefix: '__$',
-      hiddenFieldState: '__$$state$',
-      hiddenFieldHasEdit: '__$i',
       cmOptions: {
-        mode: "text/x-mysql", // Language mode
-        theme: "dracula", // Theme
-        lineNumbers: true, // Show line number
-        smartIndent: true, // Smart indent
-        indentUnit: 2, // The smart indent unit is 2 spaces in length
-        foldGutter: true, // Code folding
-        styleActiveLine: true, // Display the style of the selected row
+        mode: "text/x-mysql",
+        theme: "dracula",
+        lineNumbers: true,
+        smartIndent: true,
+        indentUnit: 2,
+        foldGutter: true,
+        styleActiveLine: true,
         autofocus: true,
         hintOptions: {
           hint: this.autocomplete,
@@ -279,8 +256,6 @@ export default {
         }]
       }],
       dbc: [],
-      db: [],
-      dbcHeight: 0,
       connectionDialog: {
         id: null,
         visible: false,
@@ -303,24 +278,20 @@ export default {
         type: null,
         value: null,
         visible: false
-      }
+      },
+      dbTemplates: []
     }
   },
-  components: { TitleBar, Codemirror, DataTable, TableEdit, TableMeta },
+  components: { TitleBar, Codemirror, DataTable, TableEdit, TableMeta, Fixed },
   mounted() {
     if (native && native.isInit) {
       this.init();
     } else {
       window.addEventListener('native', this.init)
     }
-    this.db = databaseTemplate;
-    this.setDisplayLocale('en');
+    this.dbTemplates = databaseTemplate;
+
     this.loadStorage();
-    for (let template of this.db) {
-      for (let key in template.dataValidate) {
-        template.dataValidate[key] = [this.validate(template)];
-      }
-    }
   },
   methods: {
     setLocale(obj) {
@@ -349,20 +320,6 @@ export default {
       native.window.height = parseInt(actualSize.height * 0.85);
       native.window.showCenter();
       native.window.addDragMoveArea(0, 0, 20000, 40);
-      setTimeout(() => {
-        this.dbcHeight = this.$refs.main_left.offsetHeight;
-        let observable = new ResizeObserver((e) => {
-          this.dbcHeight = this.$refs.main_left && this.$refs.main_left.offsetHeight;
-        })
-        observable.observe(this.$refs.main_left);
-      }, 100);
-    },
-    error(e) {
-      this.$message({
-        duration: 3000,
-        message: e,
-        type: 'error'
-      })
     },
     async nodeClick(data, node, e) {
       if (data.items && data.items.length > 0) return;
@@ -402,19 +359,8 @@ export default {
 
       }
     },
-    validate(template) {
-      return {
-        trigger: 'blur', validator: (rule, value, callback) => {
-          if (!value) {
-            callback(new Error(template.data[rule.field].name + ' ' + this.global.locale.required))
-            return false;
-          }
-          return true;
-        }
-      }
-    },
     openConnectionDialog(i) {
-      let current = this.db[i];
+      let current = databaseTemplate[i];
       for (let key in current.data) {
         this.connection[key] = current.data[key].value;
       }
@@ -460,6 +406,7 @@ export default {
       for (let dc of connection) {
         this.addConnectionByInfo(dc.info, dc.type);
       }
+      this.setDisplayLocale(localStorage.getItem('lang') || 'en');
     },
     getDBCByNode(node) {
       while (node != null && node.level != 1) {
@@ -543,20 +490,22 @@ export default {
       this.connectionDialog.id = node.data.id;
     },
     async refreshCN(node) {
-      databaseConnecton.use(this.getDBCByNode(node), async (db) => {
-        let dbs = await db.select('show databases');
+      try {
+        let dbs = await databaseConnecton.databaseList(this.getDBCByNode(node));
         for (let obj of dbs) {
-          if (node.data.items.findIndex(e => e.label == obj.Database) == -1) {
+          if (node.data.items.findIndex(e => e.label == obj.name) == -1) {
             node.data.items.push({
               id: treeId++,
-              label: obj.Database,
+              label: obj.name,
               items: [],
               db: node.data.db
             })
           }
         }
         this.$refs.tree.setData(this.dbc);
-      })
+      } catch (e) {
+        this.error(e);
+      }
     },
     async removeCN(node) {
       await this.$confirm(this.format(this.global.locale.delete_tip, node.data.label), this.global.locale.prompt, {
@@ -571,10 +520,10 @@ export default {
       console.log(sub)
     },
     setDisplayLocale(lang) {
-      this.global.locale = this.global.locales[lang][0];
-      this.global.el_locale = this.global.locales[lang][1];
-      this.setLocale(this.db)
+      this.setCurrentLocale(lang);
+      this.setLocale(this.dbTemplates)
       this.setLocale(this.menu)
+      localStorage.setItem('lang', lang);
     },
     async switchDBStatus(node) {
       if (node.data.items.length) {
@@ -585,7 +534,7 @@ export default {
       }
     },
     refreshTable(node) {
-      return this.refreshTableByDB(this.getDBCByNode(node), node.level == 1 ? node.data : node.parent.data);
+      return this.refreshTableByDB(this.getDBCByNode(node), node.level == 1 ? node.data : (node.level == 4 ? node.parent.parent.data : node.parent.data));
     },
     async refreshTableByDB(dbcData, dbData) {
       let list = await databaseConnecton.getTableList(dbcData, dbData.label);
@@ -600,6 +549,7 @@ export default {
           })
         }
       }
+      tableData.items.sort((a, b) => a.label.localeCompare(b.label));
       this.$refs.tree.setData(this.dbc);
     },
     async deleteDB(node) {
@@ -642,8 +592,8 @@ export default {
         data_index: 1,
         data_size: 100,
         data_total: null,
-        dcIndex: path[0],
-        dbIndex: path[1],
+        dbc: this.dbc[path[0]],
+        db: this.dbc[path[0]].items[path[1]],
         table: data.label
       })
       let tab = this.tabs[this.tabs.length - 1];
@@ -654,15 +604,15 @@ export default {
       this.tabIndex = this.tabs.length - 1
     },
     loadTableColumn(tab, table) {
-      return databaseConnecton.getTableColumns(this.dbc[tab.dcIndex], this.dbc[tab.dcIndex].items[tab.dbIndex].label, table);
+      return databaseConnecton.getTableColumns(tab.dbc, tab.db.label, table);
     },
     async loadTableData(tab, table) {
-      tab.dataChange = false;
+      tab.$change = false;
       tab.wait = true;
       tab.data_index = tab.data_index;
       tab.data_size = tab.data_size;
       try {
-        let page = await databaseConnecton.getTableDataPage(this.dbc[tab.dcIndex], this.dbc[tab.dcIndex].items[tab.dbIndex].label, table, tab.data_index, tab.data_size, (e) => {
+        let page = await databaseConnecton.getTableDataPage(tab.dbc, tab.db.label, table, tab.data_index, tab.data_size, (e) => {
           tab.sql = e;
           tab.explain = tab.sql;
         });
@@ -706,19 +656,8 @@ export default {
         })
         return;
       }
-      let dcIndex, dbIndex;
       let find = this.getNodeDataPathById(id).path;
-      let level = 1;
-      for (let k of find) {
-        if (level == 1) {
-          dcIndex = k;
-        } else if (level == 2) {
-          dbIndex = k;
-          break;
-        }
-        level++;
-      }
-      this.openSQLPanel(null, '', dcIndex, dbIndex);
+      this.openSQLPanel(null, '', find[0], find[1]);
     },
     openSQLPanel(name, content, dcIndex, dbIndex) {
       let c = 0
@@ -732,6 +671,8 @@ export default {
         content: ' ',
         dcIndex,
         dbIndex,
+        dbc: this.dbc[dcIndex],
+        db: this.dbc[dcIndex].items[dbIndex],
         data: null,
         columns: null,
         dataType: null,
@@ -765,17 +706,20 @@ export default {
             list.push(s);
           }
         }
-        if (editor.tab.dcIndex != null) {
-          for (let s of this.dbc[editor.tab.dcIndex].items) {
+        if (editor.tab.dbc != null) {
+          for (let s of editor.tab.dbc.items) {
             if (s.label.startsWith(word)) {
               list.push(s.label);
             }
           }
-          for (let s of this.dbc[editor.tab.dcIndex].items[editor.tab.dbIndex].items) {
-            if (s.label.startsWith(word)) {
-              list.push(s.label);
+          for (let item of editor.tab.db.items) {
+            for (let s of item.items) {
+              if (s.label.startsWith(word)) {
+                list.push(s.label);
+              }
             }
           }
+
         }
       }
 
@@ -785,16 +729,8 @@ export default {
     async runSQL(tab) {
       console.log(tab)
       tab.selected = null;
-      if (tab.dcIndex == null) {
-        this.$message({
-          duration: 3000,
-          message: this.global.locale.not_selected_db,
-          type: 'warning'
-        })
-        return;
-      }
-      let dc = this.dbc[tab.dcIndex];
-      let db = dc.items[tab.dbIndex];
+      let dc = tab.dbc;
+      let db = tab.db;
       tab.start = Date.now();
       tab.data = null;
       tab.timeId = setInterval(() => {
@@ -802,14 +738,7 @@ export default {
       }, 50);
       try {
         let sql = tab.content.trim();
-        let p = sql.indexOf(' ');
-        let execute = false;
-        if (p > -1) {
-          let one = sql.substring(0, p);
-          if (one.toLowerCase() != 'select' && one.toLowerCase() != 'show') {
-            execute = true;
-          }
-        }
+        let execute = !databaseTemplate[dc.dbType].isQuery(sql);
         tab.run = true;
         tab.sql = sql;
         tab.explain = sql;
@@ -817,7 +746,7 @@ export default {
         if (execute) {
           tab.dataType = 0;
           let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db.label);
-          tab.db = cn;
+          tab.$cn = cn;
           tab.runId = await cn.executeAsync(sql, null, (count) => {
             this.sqlRunEnd(tab);
             tab.data = this.format(this.global.locale.affected_rows, count);
@@ -828,7 +757,7 @@ export default {
         } else {
           tab.dataType = 1;
           let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db.label);
-          tab.db = cn;
+          tab.$cn = cn;
           let match = /^select\s+\*\s+from\s+(\w+).*$/i.exec(sql)
           if (match && match.length) {
             tab.table = match[1];
@@ -859,13 +788,13 @@ export default {
     setDuplicateData(data) {
       for (let row of data) {
         for (let column in row) {
-          row[this.hiddenFieldPrefix + column] = row[column];
+          row[this.constant.hiddenFieldPrefix + column] = row[column];
         }
       }
       return data;
     },
     sqlRunEnd(tab, e) {
-      tab.db.close();
+      tab.$cn.close();
       tab.run = false;
       tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
       clearInterval(tab.timeId);
@@ -887,7 +816,7 @@ export default {
     },
     async stopSQL(tab) {
       try {
-        await tab.db.cancel(tab.runId);
+        await tab.$cn.cancel(tab.runId);
       } catch { }
       clearInterval(tab.timeId);
       tab.wait = false;
@@ -899,151 +828,20 @@ export default {
         this.tabIndex = this.tabIndex - 1;
       }
     },
-    addRow(tab) {
-      let row = {};
-      row[this.hiddenFieldState] = 'insert';
-      for (let column of tab.columns) {
-        row[column.name] = null;
-      }
-      tab.data.push(row);
-      tab.dataChange = true;
-      tab.explain = this.generateSQL(tab);
-    },
-    removeRow(tab) {
-      let data = tab.data[tab.selected];
-      if (data[this.hiddenFieldState] == 'insert') {
-        tab.data.splice(tab.selected, 1)
-      } else {
-        tab.dataChange = true;
-        data[this.hiddenFieldState] = 'delete';
-      }
-      tab.explain = this.generateSQL(tab);
-    },
-    generateSQL(tab) {
-      let columnInfos = {};
-      let sql = '';
-      let primaryColumns = []
-      for (let column of tab.columns) {
-        if (column.key) {
-          primaryColumns.push(column.name);
-        }
-        columnInfos[column.name] = { jsType: this.db[this.dbc[tab.dcIndex].dbType].dataType[column.type].jsType, ...column };
-      }
-      for (let row of tab.data) {
-        let change = false;
-        let set = '';
-        if (row[this.hiddenFieldState] == 'update') {
-          for (let column in row) {
-            if (row[column] != row[this.hiddenFieldPrefix + column] && !column.startsWith(this.hiddenFieldPrefix)) {
-              let info = columnInfos[column];
-              if (row[column] == null)
-                values += `${column}=null,`;
-              else if (info.jsType == 'number')
-                set += `${column}=${row[column]},`;
-              else set += `${column}='${row[column]}',`;
-              change = true;
-            }
-          }
-          if (change) {
-            let primaryColumnData = '';
-            for (let column of primaryColumns) {
-              let info = columnInfos[column];
-              primaryColumnData += `${column}=`;
-              if (row[column] == null)
-                primaryColumnData += 'null and ';
-              else if (info.jsType == 'number')
-                primaryColumnData += `${row[column]} and `
-              else primaryColumnData += `'${row[column]}' and `
-              change = true;
-            }
-            primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
-            sql += `update ${tab.table} set ${set.substring(0, set.length - 1)} where ${primaryColumnData};`
-          }
-        } else if (row[this.hiddenFieldState] == 'insert') {
-          let columns = '('
-          let values = 'values(';
-          for (let column in row) {
-            if (column.startsWith(this.hiddenFieldPrefix)) continue;
-            columns += column + ','
-            let info = columnInfos[column];
-            if (row[column] == null)
-              values += 'null,';
-            else if (info.jsType == 'number')
-              values += row[column] + ',';
-            else values += "'" + row[column] + "',";
-          }
-          columns = columns.substring(0, columns.length - 1) + ')';
-          values = values.substring(0, values.length - 1) + ')';
-          sql += `insert into ${tab.table}${columns} ${values};`;
-        } else if (row[this.hiddenFieldState] == 'delete') {
-          let primaryColumnData = '';
-          for (let column of primaryColumns) {
-            let info = columnInfos[column];
-            primaryColumnData += `${column}=`;
-            if (row[column] == null)
-              primaryColumnData += 'null and ';
-            else if (info.jsType == 'number')
-              primaryColumnData += `${row[column]} and `
-            else primaryColumnData += `'${row[column]}' and `
-            change = true;
-          }
-          primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
-          sql += `delete from ${tab.table} where ${primaryColumnData};`
-        }
-      }
-      return sql;
-    },
-    async saveResult(tab) {
-      let dc = this.dbc[tab.dcIndex];
-      tab.wait = true;
-      let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
-      tab.db = cn;
-      tab.runId = await cn.executeAsync(tab.explain, null, () => {
-        cn.close();
-        tab.dataChange = false;
-        tab.wait = false;
-        this.refreshResult(tab);
-      }, (e) => {
-        tab.wait = false;
-        cn.close();
-        this.error(e);
-      })
-    },
     resetResult(tab) {
       for (let i = 0; i < tab.data.length; i++) {
         let row = tab.data[i];
-        if (row[this.hiddenFieldState] == 'insert') {
+        if (row[this.constant.hiddenFieldState] == 'insert') {
           tab.data.splice(i, 1);
           i--;
-        } else if (row[this.hiddenFieldState] == 'update') {
+        } else if (row[this.constant.hiddenFieldState] == 'update') {
           for (let column in row) {
-            row[column] = row[this.hiddenFieldPrefix + column];
+            row[column] = row[this.constant.hiddenFieldPrefix + column];
           }
         }
-        row[this.hiddenFieldState] = null;
+        row[this.constant.hiddenFieldState] = null;
       }
-      tab.dataChange = false;
-    },
-    async refreshResult(tab) {
-      let dc = this.dbc[tab.dcIndex];
-      tab.wait = true;
-      let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
-      tab.explain = tab.sql;
-      tab.runId = cn.selectAsync(tab.sql, null, (rs) => {
-        cn.close();
-        tab.dataChange = false;
-        tab.wait = false;
-        rs.splice(0, 1);
-        tab.data = this.setDuplicateData(rs);
-      }, (e) => {
-        cn.close();
-        tab.wait = false;
-        this.error(e);
-      })
-    },
-    pagingChange(tab, e) {
-      tab.data_index = e;
-      this.loadTableData(tab, tab.table);
+      tab.$change = false;
     },
     async chooseFile() {
       let files = await native.io.chooseFile(this.global.locale.open, false, null, 'SQL|*.sql')
@@ -1120,22 +918,45 @@ export default {
         if (selectId == null) return;
         navigator.clipboard.writeText(this.getNodeDataPathById(selectId).data.label);
       }
+    },
+    async copyCreateSQL(tableNode) {
+      let dbNode = this.getDBNodeByNode(tableNode);
+      navigator.clipboard.writeText(await databaseConnecton.getTableSQL(dbNode.parent.data, dbNode.data.label, tableNode.data.label));
+    },
+    async duplicateCreateSQL(tableNode) {
+      let dbNode = this.getDBNodeByNode(tableNode);
+      await databaseConnecton.duplicateTable(dbNode.parent.data, dbNode.data.label, tableNode.data.label, tableNode.data.label + '_' + this.randomString(6));
+      this.refreshTable(tableNode)
+    },
+    selectDB(tab) {
+      tab.dbc = this.dbc[tab.dcIndex];
+      tab.db = tab.dbc.items[tab.dbIndex];
+      console.log(tab)
     }
   }
 }
 </script>
 <style lang="scss">
 html,
-body,
-#app,
-.window {
+body {
   height: 100%;
+  width: 100%;
   --floor-height: 20px;
+  display: flex;
 }
 
 #app {
+  margin: 6px;
+  border-radius: 8px;
+  box-shadow: 0 0 6px var(--el-fill-color-darker);
+  overflow: hidden;
+  flex: 1;
+}
+
+.window {
   background-color: var(--el-bg-color-page);
   font-size: 14px;
+  height: 100%;
 }
 
 .window {
@@ -1180,14 +1001,6 @@ body,
     height: 32px;
     margin-bottom: 6px;
   }
-}
-
-.fixed {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  top: 0;
 }
 
 .main {
@@ -1329,45 +1142,6 @@ body,
   }
 }
 
-.table-opt-tool {
-  display: flex;
-  flex-direction: row;
-
-  .to-left {
-    display: flex;
-    flex-direction: row;
-    flex: 1;
-    align-items: center;
-  }
-
-  .to-right {
-    margin-right: 10px;
-    display: flex;
-    align-items: center;
-
-    .el-pagination__jump {
-      padding-right: 16px;
-    }
-  }
-
-  .icon {
-    margin-right: 6px;
-    font-size: 14px;
-    padding: 8px;
-
-    &.disable {
-      color: var(--el-disabled-text-color);
-
-      &:hover {
-        background-color: transparent;
-      }
-    }
-
-    &:hover {
-      background-color: var(--el-fill-color-darker);
-    }
-  }
-}
 
 .floor {
   height: var(--floor-height);
@@ -1389,6 +1163,10 @@ body,
     min-width: 150px;
     border-left: 1px solid var(--el-border-color);
   }
+}
+
+.el-tabs__header {
+  margin-bottom: 0 !important;
 }
 
 input::-webkit-inner-spin-button {

@@ -33,7 +33,7 @@ export default {
     open_table: '打开表',
     close_table: '关闭表',
     new_table: '新建表',
-    duplicate_table: '复制表',
+    duplicate: '复制',
     not_selected_db: '请先选择数据库',
     run: '执行',
     stop: '停止',
@@ -87,5 +87,6 @@ export default {
     tables:'表',
     views:'视图',
     design_table:'设计表',
-    rename:'重命名'
+    rename:'重命名',
+    copy_create_sql:'复制-SQL(Insert)'
 }
