@@ -33,7 +33,7 @@ export default {
     open_table: '打开表',
     close_table: '关闭表',
     new_table: '新建表',
-    duplicate: '复制',
+    duplicate: '副本',
     not_selected_db: '请先选择数据库',
     run: '执行',
     stop: '停止',
@@ -88,5 +88,11 @@ export default {
     views:'视图',
     design_table:'设计表',
     rename:'重命名',
-    copy_create_sql:'复制-SQL(Insert)'
+    copy_insert_sql:'SQL(Insert)',
+    copy_update_sql:'SQL(Update)',
+    copy_tap_separated:'Tap分割',
+    copy:'复制',
+    set_null:'设置为Null',
+    delete_row:'删除整行',
+    column:'列'
 }

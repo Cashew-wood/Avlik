@@ -88,5 +88,11 @@ export default {
     views:'Views',
     design_table:'Design Table',
     rename:'Rename',
-    copy_create_sql:'Copy-SQL(Insert)'
+    copy_insert_sql:'SQL(Insert)',
+    copy_update_sql:'SQL(Update)',
+    copy_tap_separated:'Tap Separated',
+    copy:'Copy',
+    set_null:'Set Null',
+    delete_row:'Delete Row',
+    column:'Column',
 }

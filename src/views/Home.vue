@@ -126,7 +126,7 @@
     </el-dialog>
     <el-dropdown ref="contextmenu" v-show="contextmenu.visible" trigger="contextmenu"
       @visible-change="contextmenuVisible">
-      <div class="contextmenu"></div>
+      <div class="contextmenu" :style="contextmenu.rect"></div>
       <template #dropdown>
         <div v-if="contextmenu.type == 0">
           <el-dropdown-menu v-if="contextmenu.data.level == 1">
@@ -155,7 +155,9 @@
           <el-dropdown-menu v-if="contextmenu.data.level == 4">
             <el-dropdown-item @click="designTable(contextmenu.data)">{{ global.locale.design_table }}</el-dropdown-item>
             <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
-            <el-dropdown-item divided @click="copyCreateSQL(contextmenu.data)">{{ global.locale.copy_create_sql }}
+            <el-dropdown-item divided @click="copyCreateSQL(contextmenu.data)">{{ global.locale.copy }}-{{
+                global.locale.copy_insert_sql
+            }}
             </el-dropdown-item>
             <el-dropdown-item @click="duplicateCreateSQL(contextmenu.data)">{{ global.locale.duplicate }}
             </el-dropdown-item>
@@ -252,7 +254,7 @@ export default {
         }, {
           _name: '${about}',
           divided: true,
-          invoke: () => { this.$alert('Vserion:.0.0.0.1', this.global.locale.prompt) }
+          invoke: async () => { this.$alert(`Name:${await native.window.title}<br/>Vserion:${await native.app.version}`, this.global.locale.prompt, { dangerouslyUseHTMLString: true }) }
         }]
       }],
       dbc: [],
@@ -269,7 +271,13 @@ export default {
       contextmenu: {
         visible: false,
         type: -1,
-        data: null
+        data: null,
+        rect:{
+          left:0,
+          top:0,
+          width:0,
+          height:0,
+        }
       },
       about: {
         visible: false
@@ -401,10 +409,11 @@ export default {
     },
     loadStorage() {
       let connection = localStorage.getItem('dbc')
-      if (!connection) return;
-      connection = JSON.parse(connection);
-      for (let dc of connection) {
-        this.addConnectionByInfo(dc.info, dc.type);
+      if (connection) {
+        connection = JSON.parse(connection);
+        for (let dc of connection) {
+          this.addConnectionByInfo(dc.info, dc.type);
+        }
       }
       this.setDisplayLocale(localStorage.getItem('lang') || 'en');
     },
@@ -454,7 +463,6 @@ export default {
         return;
       }
       this.contextmenu.visible = true;
-      let contextmenu = document.querySelector('.contextmenu')
       let parent;
       for (let dom of e.path) {
         for (let cl of dom.classList) {
@@ -468,10 +476,10 @@ export default {
       this.contextmenu.type = 0;
       let rect = parent.getBoundingClientRect();
       this.contextmenu.data = node;
-      contextmenu.style.top = rect.top + 'px';
-      contextmenu.style.left = rect.left + 'px';
-      contextmenu.style.width = rect.width + 'px';
-      contextmenu.style.height = rect.height + 'px';
+      this.contextmenu.rect.top = rect.top + 'px';
+      this.contextmenu.rect.left = rect.left + 'px';
+      this.contextmenu.rect.width = rect.width + 'px';
+      this.contextmenu.rect.height = rect.height + 'px';
       this.$refs.contextmenu.handleOpen();
     },
     async editCN(node) {
@@ -827,21 +835,6 @@ export default {
       if (e <= this.tabIndex) {
         this.tabIndex = this.tabIndex - 1;
       }
-    },
-    resetResult(tab) {
-      for (let i = 0; i < tab.data.length; i++) {
-        let row = tab.data[i];
-        if (row[this.constant.hiddenFieldState] == 'insert') {
-          tab.data.splice(i, 1);
-          i--;
-        } else if (row[this.constant.hiddenFieldState] == 'update') {
-          for (let column in row) {
-            row[column] = row[this.constant.hiddenFieldPrefix + column];
-          }
-        }
-        row[this.constant.hiddenFieldState] = null;
-      }
-      tab.$change = false;
     },
     async chooseFile() {
       let files = await native.io.chooseFile(this.global.locale.open, false, null, 'SQL|*.sql')

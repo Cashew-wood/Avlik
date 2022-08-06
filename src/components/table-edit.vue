@@ -12,8 +12,8 @@
             @keydown="keydown" />
         <el-date-picker ref="input" v-if="type == 'timestamp'" v-model="value" class="input" type="datetime"
             value-format="x" format="YYYY-MM-DD hh:mm:ss" @blur="hide" size="small" @keydown="keydown" />
-        <el-time-picker ref="input" v-if="type == 'time'" v-model="value" class="input" arrow-control
-            placeholder="hh:mm:ss" @blur="hide" size="small" @keydown="keydown" @change="change" />
+        <el-time-picker ref="input" v-if="type == 'time'" v-model="value" class="input" placeholder="hh:mm:ss"
+            @blur="hide" size="small" @keydown="keydown" @change="change" />
         <el-select ref="input" v-if="type == 'select'" v-model="value" class="input" filterable size="small"
             @blur="hide" @visible-change="downlistVisibleChange" @keydown="keydown" @change="change">
             <el-option v-for="item in data" :key="item" :label="item" :value="item"></el-option>
@@ -62,7 +62,10 @@ export default {
                 this.placeholder = '(Null)';
             else this.placeholder = n.toString();
             if (this.type == 'time') {
-                this.$emit('update:modelValue', this.timeFormat(n));
+                if (!n) {
+                    this.convertToValue(this.modelValue);
+                    console.log('clear', this.modelValue,this.value)
+                }
             } else {
                 this.$emit('update:modelValue', n);
             }
@@ -81,26 +84,11 @@ export default {
             }
         },
         modelValue(n) {
-            if (this.type == 'checkbox') {
-                this.value = n ? true : false;
-            } else {
-                this.value = n;
-            }
+            this.convertToValue(n);
         }
     },
     mounted() {
-        let num = typeof (this.modelValue) == 'number';
-        if (this.type == 'date' && num) {
-            this.value = this.dateFormat(this.modelValue);
-        } else if (this.type == 'datetime' && num) {
-            this.value = this.dateTimeFormat(this.modelValue);
-        } else if (this.type == 'time') {
-            this.value = new Date('2000-01-01 ' + this.modelValue);
-        } else if (this.type == 'checkbox') {
-            this.value = this.modelValue ? true : false;
-        } else {
-            this.value = this.modelValue;
-        }
+        this.convertToValue(this.modelValue);
         this.set = true;
         this.$nextTick(() => {
             if (this.autoFocus) {
@@ -110,6 +98,20 @@ export default {
 
     },
     methods: {
+        convertToValue(n) {
+            let num = typeof (n) == 'number';
+            if (this.type == 'date' && num) {
+                this.value = this.dateFormat(n);
+            } else if (this.type == 'datetime' && num) {
+                this.value = this.dateTimeFormat(n);
+            } else if (this.type == 'time') {
+                this.value = n ? new Date('2000-01-01 ' + n) : Date.now();
+            } else if (this.type == 'checkbox') {
+                this.value = n ? true : false;
+            } else {
+                this.value = n;
+            }
+        },
         hide(e) {
             if (!this.downlistVisible) {
                 this.focusShow = false;
@@ -141,7 +143,12 @@ export default {
             this.value = null;
         },
         change(n) {
-            this.$emit('change', n)
+            if (this.type == 'time' && n) {
+                console.log('change',n)
+                this.$emit('update:modelValue', this.timeFormat(new Date(n)));
+            } else {
+                this.$emit('change', n)
+            }
         }
     }
 }

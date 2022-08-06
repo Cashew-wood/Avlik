@@ -3,7 +3,8 @@
         <Fixed class="content">
             <el-table :data="item.data" class="table" @cell-click="cellClick" border highlight-current-row
                 :row-class-name="tableRowClassName" @current-change="handleCurrentChange(item, $event)"
-                @keydown="tableDownKey" tabindex="0">
+                @keydown="tableDownKey" tabindex="0" @cell-contextmenu="cellContenxtMenu"
+                @header-contextmenu="headerContextMenu">
                 <el-table-column align="center" type="index" fixed width="50" />
                 <el-table-column v-for="(column, k) in item.columns" :kye="k" :prop="column.name" :label="column.name"
                     :width="130" align="center">
@@ -42,7 +43,7 @@
                     @click="item.table != null && addRow(item)"></span>
                 <span :class="{ 'disable': item.selected == null || item.table == null }"
                     class="icon iconfont icon-jian"
-                    @click="item.selected != null && item.table != null && removeRow(item)"></span>
+                    @click="item.selected != null && item.table != null && removeRow"></span>
                 <span :class="{ 'disable': !item.$change }" class="icon iconfont icon-duihao"
                     @click="item.$change && saveResult(item)"></span>
                 <span :class="{ 'disable': !item.$change }" class="icon iconfont icon-cha"
@@ -57,6 +58,7 @@
                     @current-change="pagingChange(item, $event)" />
             </div>
         </div>
+        <ContextMenu ref="contextmenu"></ContextMenu>
     </div>
 </template>
 <script>
@@ -64,20 +66,53 @@ import TableEdit from './table-edit.vue';
 import Fixed from './fixed.vue';
 import databaseConnecton from '../assets/js/database-connecton';
 import databaseTemplate from '../assets/js/database-template';
+import ContextMenu from './context-menu.vue';
 export default {
     data() {
         return {
             selectCell: null,
-            dbTemplate: null
+            dbTemplate: null,
+            menuCell: [{
+                name: 'set_null',
+                onClick: this.setNull
+            }, {
+                name: 'delete_row',
+                divided: true,
+                onClick: this.removeRow
+            }, {
+                name: 'copy',
+                divided: true,
+                items: [{
+                    name: 'copy_insert_sql',
+                    onClick: this.copyInsertSQL
+                }, {
+                    name: 'copy_update_sql',
+                    onClick: this.copyUpdateSQL
+                }, {
+                    name: 'copy_tap_separated',
+                    onClick: this.copyTapSeparated
+                }]
+            }],
+            menuHeader: [{
+                name: 'copy',
+                onClick: this.copyHeader
+            }, {
+                name: 'copy',
+                items: [{
+                    name: 'column',
+                    onClick: this.copyHeaderColumn
+                }]
+            }],
+            readOnly: false
         };
     },
     props: {
         item: Object,
-        loadTableData:Function
+        loadTableData: Function
     },
     mounted() {
         this.dbTemplate = databaseTemplate[this.item.dbc.dbType];
-        console.log(this.item)
+        this.readOnly = this.item.columns.findIndex(e => e.type ? true : false) == -1;
     },
     methods: {
         tableEditBoxHide(item, row, columnName) {
@@ -133,7 +168,6 @@ export default {
             if (row == this.item.data.length) {
                 this.addRow(this.item);
             }
-            this.item.data[row][this.constant.hiddenFieldHasEdit] = find;
             this.selectCell = { row: this.item.data[row], column: find, hasEdit: true }
         },
         tableDownKey(e) {
@@ -141,17 +175,7 @@ export default {
                 e.stopPropagation();
                 e.preventDefault();
             } else if (e.ctrlKey && e.key.toLowerCase() == 'c') {
-                let s = '';
-                let row = this.item.data[this.item.selected];
-                if (this.selectCell.column) return;
-                for (let key in row) {
-                    if (key.startsWith(this.constant.hiddenFieldPrefix)) continue;
-                    s += (row[key] || null) + '\t';
-                }
-                if (s.length) {
-                    s = s.substring(0, s.length - 1);
-                }
-                navigator.clipboard.writeText(s);
+                this.copyTapSeparated();
             }
         },
         textDownKey(e, row, columnName) {
@@ -179,15 +203,15 @@ export default {
             tab.$change = true;
             tab.explain = this.dbTemplate.onDataChange(tab);
         },
-        removeRow(tab) {
-            let data = tab.data[tab.selected];
+        removeRow() {
+            let data = this.item.data[this.item.selected];
             if (data[this.constant.hiddenFieldState] == 'insert') {
-                tab.data.splice(tab.selected, 1)
+                this.item.data.splice(this.item.selected, 1)
             } else {
-                tab.$change = true;
+                this.item.$change = true;
                 data[this.constant.hiddenFieldState] = 'delete';
             }
-            tab.explain = this.dbTemplate.onDataChange(tab);
+            this.item.explain = this.dbTemplate.onDataChange(this.item);
         },
         async saveResult(tab) {
             tab.wait = true;
@@ -221,6 +245,22 @@ export default {
                 this.error(e);
             })
         },
+        resetResult(tab) {
+            for (let i = 0; i < tab.data.length; i++) {
+                let row = tab.data[i];
+                if (row[this.constant.hiddenFieldState] == 'insert') {
+                    tab.data.splice(i, 1);
+                    i--;
+                } else if (row[this.constant.hiddenFieldState] == 'update') {
+                    for (let column in row) {
+                        if (column.startsWith(this.constant.hiddenFieldPrefix)) continue;
+                        row[column] = row[this.constant.hiddenFieldPrefix + column];
+                    }
+                }
+                row[this.constant.hiddenFieldState] = null;
+            }
+            tab.$change = false;
+        },
         setDuplicateData(data) {
             for (let row of data) {
                 for (let column in row) {
@@ -232,9 +272,57 @@ export default {
         pagingChange(tab, e) {
             tab.data_index = e;
             this.loadTableData(tab, tab.table);
+        },
+        cellContenxtMenu(row, column, cell, event) {
+            if (this.readOnly) return;
+            this.item.selected = this.item.data.findIndex(e => e == row);
+            this.selectCell = { row, column: column.label, hasEdit: false }
+            this.$refs.contextmenu.show(event.path[1], this.menuCell);
+        },
+        setNull() {
+            this.selectCell.row[this.selectCell.column] = null;
+            this.selectCell.row[this.constant.hiddenFieldState] = "update";
+            this.item.$change = true;
+            this.item.explain = this.dbTemplate.onDataChange(this.item);
+        },
+        copyInsertSQL() {
+            navigator.clipboard.writeText(this.dbTemplate.onCopyRowInsert(this.item, this.selectCell.row));
+        },
+        copyUpdateSQL() {
+            navigator.clipboard.writeText(this.dbTemplate.onCopyRowUpdate(this.item, this.selectCell.row));
+        },
+        headerContextMenu(column, e) {
+            console.log(column)
+            this.$refs.contextmenu.show(e.path[1], this.menuHeader, column);
+        },
+        copyHeader(column) {
+            navigator.clipboard.writeText(column.label);
+        },
+        copyHeaderColumn(column) {
+            let s = '';
+            for (let row of this.item.data) {
+                s += row[column.label] + '\n';
+            }
+            if (s.length) {
+                s = s.substring(0, s.length - 1);
+            }
+            navigator.clipboard.writeText(s);
+        },
+        copyTapSeparated() {
+            let s = '';
+            let row = this.item.data[this.item.selected];
+            if (this.selectCell.column) return;
+            for (let key in row) {
+                if (key.startsWith(this.constant.hiddenFieldPrefix)) continue;
+                s += (row[key] || null) + '\t';
+            }
+            if (s.length) {
+                s = s.substring(0, s.length - 1);
+            }
+            navigator.clipboard.writeText(s);
         }
     },
-    components: { TableEdit, Fixed }
+    components: { TableEdit, Fixed, ContextMenu }
 }
 </script>
 <style lang="scss">
