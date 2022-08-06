@@ -90,7 +90,7 @@ export default {
     rename:'重命名',
     copy_insert_sql:'SQL(Insert)',
     copy_update_sql:'SQL(Update)',
-    copy_tap_separated:'Tap分割',
+    copy_tap_separated:'Tap分隔符',
     copy:'复制',
     set_null:'设置为Null',
     delete_row:'删除整行',

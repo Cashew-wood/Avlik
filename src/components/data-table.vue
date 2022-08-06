@@ -43,7 +43,7 @@
                     @click="item.table != null && addRow(item)"></span>
                 <span :class="{ 'disable': item.selected == null || item.table == null }"
                     class="icon iconfont icon-jian"
-                    @click="item.selected != null && item.table != null && removeRow"></span>
+                    @click="item.selected != null && item.table != null && removeRow()"></span>
                 <span :class="{ 'disable': !item.$change }" class="icon iconfont icon-duihao"
                     @click="item.$change && saveResult(item)"></span>
                 <span :class="{ 'disable': !item.$change }" class="icon iconfont icon-cha"
@@ -102,8 +102,7 @@ export default {
                     name: 'column',
                     onClick: this.copyHeaderColumn
                 }]
-            }],
-            readOnly: false
+            }]
         };
     },
     props: {
@@ -112,7 +111,6 @@ export default {
     },
     mounted() {
         this.dbTemplate = databaseTemplate[this.item.dbc.dbType];
-        this.readOnly = this.item.columns.findIndex(e => e.type ? true : false) == -1;
     },
     methods: {
         tableEditBoxHide(item, row, columnName) {
@@ -204,6 +202,7 @@ export default {
             tab.explain = this.dbTemplate.onDataChange(tab);
         },
         removeRow() {
+            console.log('remove')
             let data = this.item.data[this.item.selected];
             if (data[this.constant.hiddenFieldState] == 'insert') {
                 this.item.data.splice(this.item.selected, 1)
@@ -274,7 +273,7 @@ export default {
             this.loadTableData(tab, tab.table);
         },
         cellContenxtMenu(row, column, cell, event) {
-            if (this.readOnly) return;
+            if (this.item.columns.findIndex(e => e.type ? true : false) == -1) return;
             this.item.selected = this.item.data.findIndex(e => e == row);
             this.selectCell = { row, column: column.label, hasEdit: false }
             this.$refs.contextmenu.show(event.path[1], this.menuCell);
