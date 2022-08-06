@@ -769,6 +769,7 @@ export default {
           let match = /^select\s+\*\s+from\s+(\w+).*$/i.exec(sql)
           if (match && match.length) {
             tab.table = match[1];
+            tab.columns = await this.loadTableColumn(tab, tab.table);
             tab.runId = await cn.selectAsync(sql, null, (rs) => {
               this.sqlRunEnd(tab);
               rs.splice(0, 1);
@@ -776,7 +777,6 @@ export default {
             }, (e) => {
               this.sqlRunEnd(tab, e);
             });
-            tab.columns = await this.loadTableColumn(tab, tab.table);
           } else {
             tab.runId = await cn.selectAsync(sql, null, (rs) => {
               this.sqlRunEnd(tab);
