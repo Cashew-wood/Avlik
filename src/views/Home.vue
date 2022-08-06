@@ -24,7 +24,7 @@
         </div>
         <template #dropdown>
           <el-dropdown-menu>
-            <el-dropdown-item v-for="(item, i) in db" :key="i" @click="openConnectionDialog(i)">{{ item.name }}
+            <el-dropdown-item v-for="(item, i) in dbTemplates" :key="i" @click="openConnectionDialog(i)">{{ item.name }}
             </el-dropdown-item>
           </el-dropdown-menu>
         </template>
@@ -35,25 +35,29 @@
       </div>
     </div>
     <div class="main">
-      <div class="left" v-show="show_navigation">
-        <div class="dbc">
-          <div class="fixed" ref="main_left" :data-type="dbcHeight">
-            <el-tree-v2 ref="tree" :data="dbc" v-if="dbcHeight"
-              :props="{ value: 'id', label: 'label', children: 'items' }" highlight-current :height="dbcHeight"
-              @node-click="nodeClick" @node-contextmenu="nodeMenu">
+      <div class="left" v-show="show_navigation" ref="main_left">
+        <Fixed class="dbc">
+          <template #default="{ height }">
+            <el-tree-v2 ref="tree" :data="dbc" :props="{ value: 'id', label: 'label', children: 'items' }"
+              highlight-current :height="height" @node-click="nodeClick" @node-contextmenu="nodeMenu"
+              @keydown="treeShortcutKey">
               <template #default="{ node }">
-
                 <span v-if="node.level == 1" class="prefix iconfont cn"
-                  :class="[db[node.data.dbType].icon, node.data.items.length ? 'open' : '']"></span>
+                  :class="[dbTemplates[node.data.dbType].icon, node.data.items.length ? 'open' : '']"></span>
                 <span v-if="node.level == 2" class="prefix iconfont db icon-jurassic_data"></span>
-                <img v-if="node.level == 3" class="prefix icon" src="../assets/img/table_x16.png" />
-                <span>{{ node.label }}</span>
-                <div v-if="node.level == 3" style="position: absolute;left:0;right: 0;top: 0;bottom: 0;"
-                  @dblclick="openTable(node.data, node.parent.data)"></div>
+                <template v-if="node.level > 2">
+                  <img v-if="node.data.type == 'tables'" class="prefix icon" src="../assets/img/tree-table.png" />
+                  <img v-if="node.data.type == 'views'" class="prefix icon" src="../assets/img/tree-view.png" />
+                </template>
+                <el-input ref="rename" v-if="node.data.$rename" v-model="node.data.$name" autofocus size="small"
+                  @blur="renameClose(node)" @keydown="renameKeyDown($event, node)" style="width: calc(100% - 60px)" />
+                <span v-else>{{ node.label }}</span>
+                <div v-if="node.level == 4 && !node.data.$rename"
+                  style="position: absolute;left:0;right: 0;top: 0;bottom: 0;" @dblclick="doubleItem(node)"></div>
               </template>
             </el-tree-v2>
-          </div>
-        </div>
+          </template>
+        </Fixed>
         <div class="floor">
         </div>
       </div>
@@ -62,8 +66,7 @@
           <el-tab-pane v-for="(item, i) in tabs" :key="i" :label="item.name" class="tab-panel" :name="i">
             <div class="table_panel" v-if="item.type == 0">
               <div class="scroll">
-                <DataTable :item="item" :generateSQL="generateSQL" :dbTemplate="db[item.dcIndex]" :addRow="addRow">
-                </DataTable>
+                <DataTable :item="item" :loadTableData="loadTableData"></DataTable>
               </div>
             </div>
             <div v-if="item.type == 1" class="code">
@@ -71,7 +74,7 @@
                 <el-select v-model="item.dcIndex" class="m-2" placeholder="Select">
                   <el-option v-for="(item, i) in dbc" :key="item.id" :label="item.label" :value="i" />
                 </el-select>
-                <el-select v-model="item.dbIndex" class="m-2" placeholder="Select">
+                <el-select v-model="item.dbIndex" class="m-2" placeholder="Select" @change="selectDB(item)">
                   <el-option v-if="item.dcIndex != null" v-for="(item, i) in dbc[item.dcIndex].items" :key="item.id"
                     :label="item.label" :value="i" />
                 </el-select>
@@ -88,34 +91,12 @@
               <div class="result" v-if="item.data">
                 <div class="scroll">
                   <div v-if="item.dataType == 0" class="string">{{ item.data }}</div>
-                  <DataTable v-if="item.dataType == 1" :item="item" :generateSQL="generateSQL"
-                    :dbTemplate="db[item.dcIndex]" :addRow="addRow"></DataTable>
+                  <DataTable v-if="item.dataType == 1" :item="item"></DataTable>
                 </div>
               </div>
             </div>
-            <div v-if="item.type == 2" class="new_table">
-              <NewTable :item="item" :addRow="addNewTableRow" :generateSQL="generateTableSQL" :dbc="dbc[item.dcIndex]">
-              </NewTable>
-            </div>
-            <div class="table-opt-tool" v-if="(item.dataType == 1 && item.data) || item.type == 0">
-              <div class="to-left">
-                <span class="icon iconfont icon-zengjia" @click="addRow(item)"></span>
-                <span :class="{ 'disable': item.selected == null }" class="icon iconfont icon-jian"
-                  @click="item.selected != null && removeRow(item)"></span>
-                <span :class="{ 'disable': !item.dataChange }" class="icon iconfont icon-duihao"
-                  @click="item.dataChange && saveResult(item)"></span>
-                <span :class="{ 'disable': !item.dataChange }" class="icon iconfont icon-cha"
-                  @click="item.dataChange && resetResult(item)"></span>
-                <span class="icon iconfont icon-recover" @click="refreshResult(item)"></span>
-                <span :class="{ 'disable': !item.wait }" class="icon iconfont icon-stop"
-                  @click="item.wait && stopSQL(item)"></span>
-              </div>
-              <div class="to-right" v-if="item.type == 0">
-                <el-pagination layout="total, prev, jumper, next" :page-size="item.data_size"
-                  :current-page="item.data_index" :total="item.data_total" small
-                  @current-change="pagingChange(item, $event)" />
-              </div>
-            </div>
+            <TableMeta v-if="item.type == 2" :item="item" @add="addNewTable(item)">
+            </TableMeta>
             <div class="floor">
               <div class="floor-left">
                 {{ item.explain }}
@@ -127,13 +108,11 @@
           </el-tab-pane>
         </el-tabs>
       </div>
-
     </div>
-
     <el-dialog v-model="connectionDialog.visible" :title="global.locale.new_connection" width="50%"
       ref="connectionDialog" custom-class="connection-dialog">
-      <el-form ref="NCF" :model="connection" :rules="db[connectionType].dataValidate" border>
-        <el-form-item v-for="(item, key) in db[connectionType].data" :label="item.name" :prop="key"
+      <el-form ref="NCF" :model="connection" :rules="dbTemplates[connectionDialog.dbType].dataValidate" border>
+        <el-form-item v-for="(item, key) in dbTemplates[connectionDialog.dbType].data" :label="item.name" :prop="key"
           :label-width="connectionDialog.labelWidth">
           <template v-if="item.type == 'file'">
             <el-input type="text" v-model="connection[key]" autocomplete="off" maxlength="30" />
@@ -152,7 +131,7 @@
     </el-dialog>
     <el-dropdown ref="contextmenu" v-show="contextmenu.visible" trigger="contextmenu"
       @visible-change="contextmenuVisible">
-      <div class="contextmenu"></div>
+      <div class="contextmenu" :style="contextmenu.rect"></div>
       <template #dropdown>
         <div v-if="contextmenu.type == 0">
           <el-dropdown-menu v-if="contextmenu.data.level == 1">
@@ -163,7 +142,7 @@
             </el-dropdown-item>
             <el-dropdown-item @click="editCN(contextmenu.data)">{{ global.locale.edit_connection }}</el-dropdown-item>
             <el-dropdown-item @click="refreshCN(contextmenu.data)">{{ global.locale.refresh }}</el-dropdown-item>
-            <el-dropdown-item @click="removeCN(contextmenu.data)">{{ global.locale.delete }}
+            <el-dropdown-item divided @click="removeCN(contextmenu.data)">{{ global.locale.delete }}
             </el-dropdown-item>
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 2">
@@ -176,13 +155,22 @@
               @click="deleteDB(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 3">
-            <!-- <el-dropdown-item @click="switchTBStatus(contextmenu.data)">{{ contextmenu.data.data.open ?
-                global.locale.close_table :
-                global.locale.open_table
-            }}
-            </el-dropdown-item> -->
             <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
-            <el-dropdown-item @click="deleteTable(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
+            <el-dropdown-item @click="refreshTable(contextmenu.data)">{{ global.locale.refresh }}</el-dropdown-item>
+          </el-dropdown-menu>
+          <el-dropdown-menu v-if="contextmenu.data.level == 4">
+            <el-dropdown-item @click="designTable(contextmenu.data)">{{ global.locale.design_table }}</el-dropdown-item>
+            <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
+            <el-dropdown-item divided @click="copyCreateSQL(contextmenu.data)">{{ global.locale.copy }}-{{
+                global.locale.copy_insert_sql
+            }}
+            </el-dropdown-item>
+            <el-dropdown-item @click="duplicateCreateSQL(contextmenu.data)">{{ global.locale.duplicate }}
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="renameTable(contextmenu.data.data)">{{ global.locale.rename }}
+            </el-dropdown-item>
+            <el-dropdown-item divided @click="deleteTable(contextmenu.data)">{{ global.locale.delete }}
+            </el-dropdown-item>
           </el-dropdown-menu>
         </div>
       </template>
@@ -213,7 +201,6 @@ import 'codemirror/addon/fold/brace-fold'
 import 'codemirror/addon/fold/comment-fold'
 import DataTable from '../components/data-table.vue';
 import TableEdit from '../components/table-edit.vue';
-import NewTable from '../components/new-table.vue';
 import databaseTemplate from '../assets/js/database-template';
 import databaseConnecton from '../assets/js/database-connecton';
 import TableMeta from '../components/table-meta.vue';
@@ -222,17 +209,14 @@ import ContextMenu from '../components/context-menu.vue';
 export default {
   data() {
     return {
-      hiddenFieldPrefix: '__$',
-      hiddenFieldState: '__$$state$',
-      hiddenFieldHasEdit: '__$i',
       cmOptions: {
-        mode: "text/x-sql", // Language mode
-        theme: "dracula", // Theme
-        lineNumbers: true, // Show line number
-        smartIndent: true, // Smart indent
-        indentUnit: 2, // The smart indent unit is 2 spaces in length
-        foldGutter: true, // Code folding
-        styleActiveLine: true, // Display the style of the selected row
+        mode: "text/x-mysql",
+        theme: "dracula",
+        lineNumbers: true,
+        smartIndent: true,
+        indentUnit: 2,
+        foldGutter: true,
+        styleActiveLine: true,
         autofocus: true,
         hintOptions: {
           hint: this.autocomplete,
@@ -277,26 +261,18 @@ export default {
         }, {
           _name: '${about}',
           divided: true,
-          invoke: () => { this.$alert('Vserion:.0.0.0.1', 'Prompt') }
+          invoke: async () => { this.$alert(`Name:${await native.window.title}<br/>Vserion:${await native.app.version}`, this.global.locale.prompt, { dangerouslyUseHTMLString: true }) }
         }]
       }],
       dbc: [],
-      db: [],
-      dbcHeight: 0,
       connectionDialog: {
         id: null,
         visible: false,
         labelWidth: '100px',
-        edit: false
+        edit: false,
+        dbType: 0
       },
-      connection: {
-        name: '',
-        host: '',
-        port: '',
-        user: '',
-        pwd: ''
-      },
-      connectionType: 0,
+      connection: {},
       tabs: [],
       tabIndex: 0,
       contextmenu: {
@@ -312,7 +288,13 @@ export default {
       },
       about: {
         visible: false
-      }
+      },
+      renameDialog: {
+        type: null,
+        value: null,
+        visible: false
+      },
+      dbTemplates: []
     }
   },
   components: { TitleBar, Codemirror, DataTable, TableEdit, TableMeta, Fixed, ContextMenu },
@@ -322,10 +304,9 @@ export default {
     } else {
       window.addEventListener('native', this.init)
     }
-    this.db = databaseTemplate;
-    this.setDisplayLocale('en');
+    this.dbTemplates = databaseTemplate;
+
     this.loadStorage();
-    Object.assign(this, databaseConnecton);
   },
   methods: {
     setLocale(obj) {
@@ -350,37 +331,55 @@ export default {
       console.log(native)
       native.window.show();
       let actualSize = await this.global.device.screenActualSize;
-      native.window.width = parseInt(actualSize.width * 0.625);
-      native.window.height = parseInt(actualSize.height * 0.75);
+      native.window.width = parseInt(actualSize.width * 0.75);
+      native.window.height = parseInt(actualSize.height * 0.85);
       native.window.showCenter();
       native.window.addDragMoveArea(0, 0, 20000, 40);
-      setTimeout(() => {
-        this.dbcHeight = this.$refs.main_left.offsetHeight;
-        console.log(this.dbcHeight)
-        let observable = new ResizeObserver((e) => {
-          this.dbcHeight = this.$refs.main_left.offsetHeight;
-          console.log(this.dbcHeight)
-        })
-        observable.observe(this.$refs.main_left);
-      }, 100);
     },
-    nodeClick(data, node, e) {
+    async nodeClick(data, node, e) {
       if (data.items && data.items.length > 0) return;
-      if (node.level == 1) {
-        this.refreshCN(node)
-      } else if (node.level == 2) {
-        this.refreshTable(node);
-      } else if (node.level == 3) {
-        //console.log(arguments)
+      let loading = null;
+      let loadingId = setTimeout(() => {
+        loading = this.$loading({ target: this.$refs.main_left })
+      }, 100);
+      try {
+        if (node.level == 1) {
+          await this.refreshCN(node);
+        } else if (node.level == 2) {
+          node.data.items = databaseTemplate[this.getDBCByNode(node).dbType].dbItems.map(e => {
+            return {
+              id: treeId++,
+              label: this.global.locale[e],
+              items: [],
+              type: e
+            }
+          });
+          this.$refs.tree.setData(this.dbc);
+        } else if (node.level == 3) {
+          if (node.data.type == 'tables') {
+            await this.refreshTable(node);
+          }
+        }
+      } catch (e) {
+        this.error(e);
+      } finally {
+        clearTimeout(loadingId)
+        loading && loading.close();
       }
+    },
+    doubleItem(node) {
+      if (node.data.type == 'tables') {
+        this.openTable(node.data, node.parent.data);
+      } else if (node.data.type == 'views') {
 
+      }
     },
     openConnectionDialog(i) {
-      let current = this.db[i];
+      let current = databaseTemplate[i];
       for (let key in current.data) {
         this.connection[key] = current.data[key].value;
       }
-      this.connectionType = i;
+      this.connectionDialog.dbType = i;
       this.connectionDialog.visible = true;
       this.connectionDialog.edit = false;
     },
@@ -389,7 +388,7 @@ export default {
         if (vaild) {
           if (!this.connectionDialog.edit) {
             this.connectionDialog.visible = false;
-            this.addConnectionByInfo(this.connection, this.connectionType);
+            this.addConnectionByInfo(this.connection, this.connectionDialog.dbType);
             this.$refs.tree.setData(this.dbc);
           } else {
             this.connectionDialog.visible = false;
@@ -417,17 +416,25 @@ export default {
     },
     loadStorage() {
       let connection = localStorage.getItem('dbc')
-      if (!connection) return;
-      connection = JSON.parse(connection);
-      for (let dc of connection) {
-        this.addConnectionByInfo(dc.info, dc.type);
+      if (connection) {
+        connection = JSON.parse(connection);
+        for (let dc of connection) {
+          this.addConnectionByInfo(dc.info, dc.type);
+        }
       }
+      this.setDisplayLocale(localStorage.getItem('lang') || 'en');
     },
     getDBCByNode(node) {
-      while (node.level != 1) {
+      while (node != null && node.level != 1) {
         node = node.parent;
       }
       return node.data;
+    },
+    getDBNodeByNode(node) {
+      while (node != null && node.level != 2) {
+        node = node.parent;
+      }
+      return node;
     },
     switchCNStatus(node) {
       console.log('close', node.data.id, this.$refs.tree)
@@ -454,9 +461,15 @@ export default {
       }, 200)
     },
     nodeMenu(e, data, node) {
-      console.log(node)
+      if (this.contextmenu.visible) {
+        this.$refs.contextmenu.handleClose();
+        setTimeout(() => {
+          this.contextmenu.visible = false;
+          this.nodeMenu(e, data, node)
+        }, 50);
+        return;
+      }
       this.contextmenu.visible = true;
-      let contextmenu = document.querySelector('.contextmenu')
       let parent;
       for (let dom of e.path) {
         for (let cl of dom.classList) {
@@ -470,12 +483,11 @@ export default {
       this.contextmenu.type = 0;
       let rect = parent.getBoundingClientRect();
       this.contextmenu.data = node;
-      contextmenu.style.top = rect.top + 'px';
-      contextmenu.style.left = rect.left + 'px';
-      contextmenu.style.width = rect.width + 'px';
-      contextmenu.style.height = rect.height + 'px';
+      this.contextmenu.rect.top = rect.top + 'px';
+      this.contextmenu.rect.left = rect.left + 'px';
+      this.contextmenu.rect.width = rect.width + 'px';
+      this.contextmenu.rect.height = rect.height + 'px';
       this.$refs.contextmenu.handleOpen();
-
     },
     async editCN(node) {
       if (node.data.items.length) {
@@ -487,27 +499,28 @@ export default {
         this.closeConnection(node.data);
       }
       this.connection = node.data.info;
-      this.connectionType = node.data.dbType;
+      this.connectionDialog.dbType = node.data.dbType;
       this.connectionDialog.visible = true;
       this.connectionDialog.edit = true;
       this.connectionDialog.id = node.data.id;
     },
     async refreshCN(node) {
-      this.use(this.getDBCByNode(node), async (db) => {
-        let dbs = await db.select('show databases');
+      try {
+        let dbs = await databaseConnecton.databaseList(this.getDBCByNode(node));
         for (let obj of dbs) {
-          if (node.data.items.findIndex(e => e.label == obj.Database) == -1) {
+          if (node.data.items.findIndex(e => e.label == obj.name) == -1) {
             node.data.items.push({
               id: treeId++,
-              label: obj.Database,
+              label: obj.name,
               items: [],
-              db: node.data.db,
-              open: false
+              db: node.data.db
             })
           }
         }
         this.$refs.tree.setData(this.dbc);
-      })
+      } catch (e) {
+        this.error(e);
+      }
     },
     async removeCN(node) {
       await this.$confirm(this.format(this.global.locale.delete_tip, node.data.label), this.global.locale.prompt, {
@@ -522,10 +535,10 @@ export default {
       console.log(sub)
     },
     setDisplayLocale(lang) {
-      this.global.locale = this.global.locales[lang][0];
-      this.global.el_locale = this.global.locales[lang][1];
-      this.setLocale(this.db)
+      this.setCurrentLocale(lang);
+      this.setLocale(this.dbTemplates)
       this.setLocale(this.menu)
+      localStorage.setItem('lang', lang);
     },
     async switchDBStatus(node) {
       if (node.data.items.length) {
@@ -536,25 +549,23 @@ export default {
       }
     },
     refreshTable(node) {
-      this.getTable(this.getDBCByNode(node), node.data);
+      return this.refreshTableByDB(this.getDBCByNode(node), node.level == 1 ? node.data : (node.level == 4 ? node.parent.parent.data : node.parent.data));
     },
-    async getTable(dbc, dbData) {
-      await this.use(dbc, dbData.label, async (db) => {
-        let tables = await db.select('show tables');
-        for (let obj of tables) {
-          for (let name in obj) {
-            if (dbData.items.findIndex(e => e.label == obj[name]) == -1) {
-              dbData.items.push({
-                id: treeId++,
-                label: obj[name],
-                items: []
-              })
-            }
-            break;
-          }
+    async refreshTableByDB(dbcData, dbData) {
+      let list = await databaseConnecton.getTableList(dbcData, dbData.label);
+      let tableData = dbData.items[dbData.items.findIndex(e => e.type == 'tables')]
+      for (let s of list) {
+        if (tableData.items.findIndex(e => e.label == s) == -1) {
+          tableData.items.push({
+            id: treeId++,
+            label: s,
+            items: [],
+            type: 'tables'
+          })
         }
-        this.$refs.tree.setData(this.dbc);
-      });
+      }
+      tableData.items.sort((a, b) => a.label.localeCompare(b.label));
+      this.$refs.tree.setData(this.dbc);
     },
     async deleteDB(node) {
       console.log(this.global.locale)
@@ -577,14 +588,17 @@ export default {
         cancelButtonText: this.global.locale.cancel,
         type: 'warning',
       })
-      this.use(this.getDBCByNode(node), node.parent.data.label, async (db) => {
-        await db.execute('drop table ' + node.data.label);
-        node.parent.data.items.splice(node.parent.data.items.findIndex(e => e.id == node.data.id), 1);
-        this.$refs.tree.setData(this.dbc);
-      });
+      let dbNode = this.getDBNodeByNode(node);
+      try {
+        await databaseConnecton.dropTable(dbNode.parent.data, dbNode.data.label, node.data.label);
+      } catch (e) {
+        this.error(e);
+      }
+      node.parent.data.items.splice(node.parent.data.items.findIndex(e => e.id == node.data.id), 1);
+      this.$refs.tree.setData(this.dbc);
     },
     async openTable(data, parent) {
-      let path = this.treeNodeFindById(data.id);
+      let path = this.getNodeDataPathById(data.id).path;
       console.log(path);
       this.tabs.push({
         id: Date.now(),
@@ -593,80 +607,41 @@ export default {
         data: [],
         columns: [],
         data_index: 1,
-        data_size: 50,
+        data_size: 100,
         data_total: null,
-        dcIndex: path[0],
-        dbIndex: path[1],
+        dbc: this.dbc[path[0]],
+        db: this.dbc[path[0]].items[path[1]],
         table: data.label
       })
       let tab = this.tabs[this.tabs.length - 1];
-      this.loadTableColumn(tab, data, parent);
-      this.loadTableData(tab, data.label, parent.label);
+      this.loadTableColumn(tab, data.label).then(e => {
+        tab.columns = e;
+      });
+      this.loadTableData(tab, data.label);
       this.tabIndex = this.tabs.length - 1
     },
-    async loadTableColumn(tab, data, parent) {
-      tab.columns = await this.getTableColumns(parent, data);
+    loadTableColumn(tab, table) {
+      return databaseConnecton.getTableColumns(tab.dbc, tab.db.label, table);
     },
-    getTableColumns(db, table) {
-      let dbc = this.dbc[this.treeNodeFindById(db.id)[0]];
-      return new Promise((resolve, reject) => {
-        this.use(dbc, async (dc) => {
-          try {
-            let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA='${db.label}' and TABLE_NAME='${table.label}'`);
-            let columns = []
-            for (let row of tableCoumns) {
-              let k = row.COLUMN_TYPE.indexOf('(');
-              let value = k > -1 ? parseInt(row.COLUMN_TYPE.substring(k + 1, row.COLUMN_TYPE.length - 1)) : null;
-              let len = null;
-              if (this.db[dbc.dbType].dataType[row.DATA_TYPE].jsType == 'number') {
-                len = value;
-                value = null;
-              }
-              columns.push({
-                name: row.COLUMN_NAME,
-                type: row.DATA_TYPE,
-                len,
-                characterSet: row.CHARACTER_SET_NAME,
-                collation: row.CHARACTER_SET_NAME,
-                comment: row.COLUMN_COMMENT,
-                defaultValue: row.COLUMN_DEFAULT,
-                isNullable: row.IS_NULLABLE == 'YES',
-                key: row.COLUMN_KEY,
-                value
-              })
-            }
-            resolve(columns);
-          } catch (e) {
-            reject(e);
-          }
-        });
-      })
-    },
-    async loadTableData(tab, table, dbName) {
-      tab.dataChange = false;
+    async loadTableData(tab, table) {
+      tab.$change = false;
       tab.wait = true;
-      tab.sql = `select * from ${table} limit ${(tab.data_index - 1) * tab.data_size},${tab.data_size}`
-      tab.explain = tab.sql;
-      tab.data_index = tab.data_index || 1;
-      tab.data_size = tab.data_size || 500;
-      this.use(this.dbc[tab.dcIndex], dbName, async (db) => {
-        try {
-          if (tab.data_index == 1)
-            tab.data_total = (await db.select(`select count(*) count from ${table}`))[0].count;
-          let tableData = await db.select(tab.sql);
-          tab.data = this.setDuplicateData(tableData);
-          tab.wait = false;
-        } catch (e) {
-          tab.wait = false;
-          this.$message({
-            duration: 3000,
-            message: e,
-            type: 'error'
-          })
-        }
-      });
+      tab.data_index = tab.data_index;
+      tab.data_size = tab.data_size;
+      try {
+        let page = await databaseConnecton.getTableDataPage(tab.dbc, tab.db.label, table, tab.data_index, tab.data_size, (e) => {
+          tab.sql = e;
+          tab.explain = tab.sql;
+        });
+        tab.data_total = page.total;
+        tab.data = this.setDuplicateData(page.data);
+        tab.wait = false;
+      } catch (e) {
+        tab.wait = false;
+        this.error(e);
+      }
     },
-    treeNodeFindById(id) {
+    getNodeDataPathById(id) {
       let root = [{ path: [], items: this.dbc }];
       let find = null;
       do {
@@ -675,7 +650,7 @@ export default {
           let k = 0;
           for (let node of obj.items) {
             if (node.id == id) {
-              find = obj.path.concat([k]);
+              find = { path: obj.path.concat([k]), data: node };
               break
             } else {
               list.push({ path: obj.path.concat([k]), items: node.items })
@@ -698,19 +673,8 @@ export default {
         })
         return;
       }
-      let dcIndex, dbIndex;
-      let find = this.treeNodeFindById(id);
-      let level = 1;
-      for (let k of find) {
-        if (level == 1) {
-          dcIndex = k;
-        } else if (level == 2) {
-          dbIndex = k;
-          break;
-        }
-        level++;
-      }
-      this.openSQLPanel(null, '', dcIndex, dbIndex);
+      let find = this.getNodeDataPathById(id).path;
+      this.openSQLPanel(null, '', find[0], find[1]);
     },
     openSQLPanel(name, content, dcIndex, dbIndex) {
       let c = 0
@@ -724,6 +688,8 @@ export default {
         content: ' ',
         dcIndex,
         dbIndex,
+        dbc: this.dbc[dcIndex],
+        db: this.dbc[dcIndex].items[dbIndex],
         data: null,
         columns: null,
         dataType: null,
@@ -757,17 +723,20 @@ export default {
             list.push(s);
           }
         }
-        if (editor.tab.dcIndex != null) {
-          for (let s of this.dbc[editor.tab.dcIndex].items) {
+        if (editor.tab.dbc != null) {
+          for (let s of editor.tab.dbc.items) {
             if (s.label.startsWith(word)) {
               list.push(s.label);
             }
           }
-          for (let s of this.dbc[editor.tab.dcIndex].items[editor.tab.dbIndex].items) {
-            if (s.label.startsWith(word)) {
-              list.push(s.label);
+          for (let item of editor.tab.db.items) {
+            for (let s of item.items) {
+              if (s.label.startsWith(word)) {
+                list.push(s.label);
+              }
             }
           }
+
         }
       }
 
@@ -777,37 +746,24 @@ export default {
     async runSQL(tab) {
       console.log(tab)
       tab.selected = null;
-      if (tab.dcIndex == null) {
-        this.$message({
-          duration: 3000,
-          message: this.global.locale.not_selected_db,
-          type: 'warning'
-        })
-        return;
-      }
-      let dc = this.dbc[tab.dcIndex];
-      let db = dc.items[tab.dbIndex];
+      let dc = tab.dbc;
+      let db = tab.db;
       tab.start = Date.now();
+      tab.data = null;
       tab.timeId = setInterval(() => {
         tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
       }, 50);
       try {
         let sql = tab.content.trim();
-        let p = sql.indexOf(' ');
-        let execute = false;
-        if (p > -1) {
-          let one = sql.substring(0, p);
-          if (one.toLowerCase() != 'select' && one.toLowerCase() != 'show') {
-            execute = true;
-          }
-        }
+        let execute = !databaseTemplate[dc.dbType].isQuery(sql);
         tab.run = true;
         tab.sql = sql;
         tab.explain = sql;
+        tab.table = null;
         if (execute) {
           tab.dataType = 0;
-          let cn = await this.getConnection(dc.dbType, dc.info, db.label);
-          tab.db = cn;
+          let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db.label);
+          tab.$cn = cn;
           tab.runId = await cn.executeAsync(sql, null, (count) => {
             this.sqlRunEnd(tab);
             tab.data = this.format(this.global.locale.affected_rows, count);
@@ -830,7 +786,6 @@ export default {
             }, (e) => {
               this.sqlRunEnd(tab, e);
             });
-            tab.columns = await this.getTableColumns(db, { label: tab.table });
           } else {
             tab.runId = await cn.selectAsync(sql, null, (rs) => {
               this.sqlRunEnd(tab);
@@ -850,13 +805,13 @@ export default {
     setDuplicateData(data) {
       for (let row of data) {
         for (let column in row) {
-          row[this.hiddenFieldPrefix + column] = row[column];
+          row[this.constant.hiddenFieldPrefix + column] = row[column];
         }
       }
       return data;
     },
     sqlRunEnd(tab, e) {
-      tab.db.close();
+      tab.$cn.close();
       tab.run = false;
       tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
       clearInterval(tab.timeId);
@@ -865,13 +820,9 @@ export default {
       }
     },
     setSqlErrorResult(tab, e) {
-      this.$message({
-        duration: 3000,
-        message: e,
-        type: 'error'
-      })
-      tab.data = e;
+      this.error(e);
       tab.dataType = 0;
+      tab.data = e;
     },
     getRow0Columns(rs) {
       let columns = []
@@ -882,7 +833,7 @@ export default {
     },
     async stopSQL(tab) {
       try {
-        await tab.db.cancel(tab.runId);
+        await tab.$cn.cancel(tab.runId);
       } catch { }
       clearInterval(tab.timeId);
       tab.wait = false;
@@ -890,160 +841,9 @@ export default {
     },
     tabClose(e) {
       this.tabs.splice(e, 1);
-    },
-    addRow(tab) {
-      let row = {};
-      row[this.hiddenFieldState] = 'insert';
-      for (let column of tab.columns) {
-        row[column.name] = null;
+      if (e <= this.tabIndex) {
+        this.tabIndex = this.tabIndex - 1;
       }
-      tab.data.push(row);
-      tab.dataChange = true;
-      tab.explain = this.generateSQL(tab);
-    },
-    removeRow(tab) {
-      let data = tab.data[tab.selected];
-      if (data[this.hiddenFieldState] == 'insert') {
-        tab.data.splice(tab.selected, 1)
-      } else {
-        tab.dataChange = true;
-        data[this.hiddenFieldState] = 'delete';
-      }
-      tab.explain = this.generateSQL(tab);
-    },
-    generateSQL(tab) {
-      let columnInfos = {};
-      let sql = '';
-      let primaryColumns = []
-      for (let column of tab.columns) {
-        if (column.key == 'PRI') {
-          primaryColumns.push(column.name);
-        }
-        columnInfos[column.name] = { jsType: this.db[this.dbc[tab.dcIndex].dbType].dataType[column.type].jsType, ...column };
-      }
-      for (let row of tab.data) {
-        let change = false;
-        let set = '';
-        if (row[this.hiddenFieldState] == 'update') {
-          for (let column in row) {
-            if (row[column] != row[this.hiddenFieldPrefix + column] && !column.startsWith(this.hiddenFieldPrefix)) {
-              let info = columnInfos[column];
-              if (row[column] == null)
-                values += `${column}=null,`;
-              else if (info.jsType == 'number')
-                set += `${column}=${row[column]},`;
-              else set += `${column}='${row[column]}',`;
-              change = true;
-            }
-          }
-          if (change) {
-            let primaryColumnData = '';
-            for (let column of primaryColumns) {
-              let info = columnInfos[column];
-              primaryColumnData += `${column}=`;
-              if (row[column] == null)
-                primaryColumnData += 'null and ';
-              else if (info.jsType == 'number')
-                primaryColumnData += `${row[column]} and `
-              else primaryColumnData += `'${row[column]}' and `
-              change = true;
-            }
-            primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
-            sql += `update ${tab.table} set ${set.substring(0, set.length - 1)} where ${primaryColumnData};`
-          }
-        } else if (row[this.hiddenFieldState] == 'insert') {
-          let columns = '('
-          let values = 'values(';
-          for (let column in row) {
-            if (column.startsWith(this.hiddenFieldPrefix)) continue;
-            columns += column + ','
-            let info = columnInfos[column];
-            if (row[column] == null)
-              values += 'null,';
-            else if (info.jsType == 'number')
-              values += row[column] + ',';
-            else values += "'" + row[column] + "',";
-          }
-          columns = columns.substring(0, columns.length - 1) + ')';
-          values = values.substring(0, values.length - 1) + ')';
-          sql += `insert into ${tab.table}${columns} ${values};`;
-        } else if (row[this.hiddenFieldState] == 'delete') {
-          let primaryColumnData = '';
-          for (let column of primaryColumns) {
-            let info = columnInfos[column];
-            primaryColumnData += `${column}=`;
-            if (row[column] == null)
-              primaryColumnData += 'null and ';
-            else if (info.jsType == 'number')
-              primaryColumnData += `${row[column]} and `
-            else primaryColumnData += `'${row[column]}' and `
-            change = true;
-          }
-          primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
-          sql += `delete from ${tab.table} where ${primaryColumnData};`
-        }
-      }
-      return sql;
-    },
-    async saveResult(tab) {
-      let dc = this.dbc[tab.dcIndex];
-      tab.wait = true;
-      let cn = await this.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
-      tab.db = cn;
-      tab.runId = await cn.executeAsync(tab.explain, null, () => {
-        cn.close();
-        tab.dataChange = false;
-        tab.wait = false;
-        this.refreshResult(tab);
-      }, (e) => {
-        tab.wait = false;
-        cn.close();
-        this.$message({
-          duration: 3000,
-          message: e,
-          type: 'error'
-        })
-      })
-    },
-    resetResult(tab) {
-      for (let i = 0; i < tab.data.length; i++) {
-        let row = tab.data[i];
-        if (row[this.hiddenFieldState] == 'insert') {
-          tab.data.splice(i, 1);
-          i--;
-        } else if (row[this.hiddenFieldState] == 'update') {
-          for (let column in row) {
-            row[column] = row[this.hiddenFieldPrefix + column];
-          }
-        }
-        row[this.hiddenFieldState] = null;
-      }
-      tab.dataChange = false;
-    },
-    async refreshResult(tab) {
-      let dc = this.dbc[tab.dcIndex];
-      tab.wait = true;
-      let cn = await this.getConnection(dc.dbType, dc.info, dc.items[tab.dbIndex].label);
-      tab.explain = tab.sql;
-      tab.runId = cn.selectAsync(tab.sql, null, (rs) => {
-        cn.close();
-        tab.dataChange = false;
-        tab.wait = false;
-        rs.splice(0, 1);
-        tab.data = this.setDuplicateData(rs);
-      }, (e) => {
-        cn.close();
-        tab.wait = false;
-        this.$message({
-          duration: 3000,
-          message: e,
-          type: 'error'
-        })
-      })
-    },
-    pagingChange(tab, e) {
-      tab.data_index = e;
-      this.loadTableData(tab, tab.table, this.dbc[tab.dcIndex].items[tab.dbIndex].label);
     },
     async chooseFile() {
       let files = await native.io.chooseFile(this.global.locale.open, false, null, 'SQL|*.sql')
@@ -1054,25 +854,85 @@ export default {
       }
     },
     addTable(node) {
-      let path = this.treeNodeFindById(node.data.id);
+      let path = this.getNodeDataPathById(node.data.id).path;
+      let dbc = this.dbc[path[0]];
+      let tableTemplate = databaseTemplate[dbc.dbType];
       this.tabs.push({
         id: Date.now(),
         type: 2,
-        name: this.global.locale.new_table,
-        columns: [{ display: 'column_name', name: 'name', width: 150, type: 'text' },
-        { display: 'data_type', name: 'type', width: 100, type: 'select', value: Object.keys(this.db[this.getDBCByNode(node).dbType].dataType) },
-        { display: 'length', name: 'length', width: 80, type: 'number' },
-        { display: 'decimals', name: 'decimals', width: 80, type: 'number' },
-        { display: 'not_null', name: 'notNull', width: 80, type: 'checkbox' },
-        { display: 'key', name: 'key', width: 80, type: 'checkbox' },
-        { display: 'comment', name: 'comment', width: 200, type: 'text' },
-        ],
-        data: [],
-        dcIndex: path[0],
-        dbIndex: path[1]
+        name: this.global.locale.unnamed,
+        subtabs: tableTemplate.table.metatable,
+        table: this.global.locale.unnamed,
+        dbc,
+        db: dbc.items[path[1]]
       })
-      let tab = this.tabs[this.tabs.length - 1];
-      this.addNewTableRow(tab);
+      console.log(this.tabs[this.tabs.length - 1])
+      this.tabIndex = this.tabs.length - 1;
+    },
+    designTable(node) {
+      let path = this.getNodeDataPathById(node.data.id).path;
+      let dbc = this.dbc[path[0]];
+      this.tabs.push({
+        id: Date.now(),
+        type: 2,
+        name: node.data.label,
+        subtabs: [],
+        table: node.data.label,
+        dbc,
+        db: dbc.items[path[1]],
+        design: true
+      })
+      console.log(this.tabs[this.tabs.length - 1])
+      this.tabIndex = this.tabs.length - 1;
+    },
+    addNewTable(item) {
+      item.name = item.table;
+      this.refreshTableByDB(item.dbc, item.db)
+    },
+    renameTable(tableData) {
+      tableData.$rename = true;
+      tableData.$name = tableData.label;
+      setTimeout(() => {
+        this.$refs.rename.focus();
+      }, 500);
+    },
+    async renameClose(node) {
+      node.data.$rename = false;
+      if (node.data.$name == node.data.label) return;
+      let dbNode = this.getDBNodeByNode(node);
+      await databaseConnecton.renameTable(dbNode.parent.data, dbNode.data.label, node.data.label, node.data.$name);
+      node.data.label = node.data.$name;
+      this.$refs.tree.setData(this.dbc);
+    },
+    renameKeyDown(e, node) {
+      if (e.key == 'Enter') {
+        this.renameClose(node);
+      }
+    },
+    treeShortcutKey(e) {
+      let selectId = this.$refs.tree.getCurrentKey();
+      if (e.key == 'F2') {
+        if (selectId == null) return;
+        let info = this.getNodeDataPathById(selectId);
+        if (info.path.length == 4)
+          this.renameTable(info.data);
+      } else if (e.ctrlKey && e.key.toLowerCase() == 'c') {
+        if (selectId == null) return;
+        navigator.clipboard.writeText(this.getNodeDataPathById(selectId).data.label);
+      }
+    },
+    async copyCreateSQL(tableNode) {
+      let dbNode = this.getDBNodeByNode(tableNode);
+      navigator.clipboard.writeText(await databaseConnecton.getTableSQL(dbNode.parent.data, dbNode.data.label, tableNode.data.label));
+    },
+    async duplicateCreateSQL(tableNode) {
+      let dbNode = this.getDBNodeByNode(tableNode);
+      await databaseConnecton.duplicateTable(dbNode.parent.data, dbNode.data.label, tableNode.data.label, tableNode.data.label + '_' + this.randomString(6));
+      this.refreshTable(tableNode)
+    },
+    selectDB(tab) {
+      tab.dbc = this.dbc[tab.dcIndex];
+      tab.db = tab.dbc.items[tab.dbIndex];
       console.log(tab)
     },
     openFileDialog(connection, key) {
@@ -1086,16 +946,25 @@ export default {
 </script>
 <style lang="scss">
 html,
-body,
-#app,
-.window {
+body {
   height: 100%;
+  width: 100%;
   --floor-height: 20px;
+  display: flex;
 }
 
 #app {
+  margin: 6px;
+  border-radius: 8px;
+  box-shadow: 0 0 6px var(--el-fill-color-darker);
+  overflow: hidden;
+  flex: 1;
+}
+
+.window {
   background-color: var(--el-bg-color-page);
   font-size: 14px;
+  height: 100%;
 }
 
 .window {
@@ -1140,14 +1009,6 @@ body,
     height: 32px;
     margin-bottom: 6px;
   }
-}
-
-.fixed {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  top: 0;
 }
 
 .main {
@@ -1212,7 +1073,6 @@ body,
 
       .el-tabs__content,
       .el-tab-pane {
-        width: 100%;
         height: 100%;
         display: flex;
         flex-direction: column;
@@ -1285,53 +1145,11 @@ body,
         margin-bottom: 10px;
       }
 
-      .new_table {
-        width: 100%;
-        height: 100%;
-      }
+
     }
   }
 }
 
-.table-opt-tool {
-  display: flex;
-  flex-direction: row;
-
-  .to-left {
-    display: flex;
-    flex-direction: row;
-    flex: 1;
-    align-items: center;
-  }
-
-  .to-right {
-    margin-right: 10px;
-    display: flex;
-    align-items: center;
-
-    .el-pagination__jump {
-      padding-right: 16px;
-    }
-  }
-
-  .icon {
-    margin-right: 6px;
-    font-size: 14px;
-    padding: 8px;
-
-    &.disable {
-      color: var(--el-disabled-text-color);
-
-      &:hover {
-        background-color: transparent;
-      }
-    }
-
-    &:hover {
-      background-color: var(--el-fill-color-darker);
-    }
-  }
-}
 
 .floor {
   height: var(--floor-height);
@@ -1353,6 +1171,10 @@ body,
     min-width: 150px;
     border-left: 1px solid var(--el-border-color);
   }
+}
+
+.el-tabs__header {
+  margin-bottom: 0 !important;
 }
 
 input::-webkit-inner-spin-button {

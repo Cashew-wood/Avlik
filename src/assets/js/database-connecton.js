@@ -25,8 +25,9 @@ export default {
         let dc = await this.getConnection(dbc.dbType, dbc.info, dbName);
         let r = body(dc)
         if (r && r.then) {
-            await r;
+            let result = await r;
             dc.close();
+            return result;
         }
     },
     getConnectionString(connectionInfo) {
