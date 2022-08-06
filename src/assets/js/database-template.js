@@ -1,15 +1,8 @@
-function validate() {
-    return {
-        trigger: 'blur', validator: (rule, value, callback) => {
-            if (!value) {
-                callback(new Error(this.db[this.connectionType].data[rule.field].name + ' ' + this.global.locale.required))
-                return false;
-            }
-            return true;
-        }
-    }
-}
-export default [{
+import MysqlTable from "./mysql-table";
+import DBTemplateCommon from "./db-template-common";
+import global_constant from "./global_constant";
+import SqliteTable from "./sqlite-table";
+const mysqlTemplate = {
     name: 'MySQL',
     icon: 'icon-mysql',
     alias: 'mysql',
@@ -35,16 +28,17 @@ export default [{
             type: 'password'
         }
     },
+    dropDB: true,
     dataValidate: {
-        name: [validate()],
-        host: [validate()],
-        port: [validate()],
-        user: [validate()],
-        pwd: [validate()],
+        name: [],
+        host: [],
+        port: [],
+        user: [],
+        pwd: [],
     },
     dataType: {
         binary: {
-            default_value:'text',
+            default_value: 'text',
         },
         blob: {
         },
@@ -56,62 +50,62 @@ export default [{
         },
         bigint: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         bit: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
         },
         char: {
             jsType: 'text',
-            default_value:'text',
+            default_value: 'text',
             character: 'select',
             collation: 'select',
             key_length: 'number'
         },
         date: {
             jsType: 'date',
-            default_value:'text',
+            default_value: 'text',
         },
         datetime: {
             jsType: 'datetime',
-            default_value:'text',
+            default_value: 'text',
             update_current_timestamp: 'checkbox'
         },
         decimal: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             unsigned: 'checkbox'
         },
         double: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         float: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         mediumint: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         smallint: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         tinyint: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
@@ -123,13 +117,13 @@ export default [{
         },
         int: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
         integer: {
             jsType: 'number',
-            default_value:'text',
+            default_value: 'text',
             auto_increment: 'checkbox',
             unsigned: 'checkbox'
         },
@@ -164,13 +158,13 @@ export default [{
         },
         enum: {
             jsType: 'select',
-            default_value:'text',
+            default_value: 'text',
             character: 'select',
             collation: 'select',
         },
         set: {
             jsType: 'select',
-            default_value:'text',
+            default_value: 'text',
             character: 'select',
             collation: 'select',
         },
@@ -192,23 +186,119 @@ export default [{
         },
         varchar: {
             jsType: 'text',
-            default_value:'text',
+            default_value: 'text',
             character: 'select',
             collation: 'select',
             key_length: 'number'
         },
         time: {
             jsType: 'time',
-            default_value:'text'
+            default_value: 'text'
         },
         timestamp: {
             jsType: 'timestamp',
-            default_value:'text',
+            default_value: 'text',
             update_current_timestamp: 'checkbox'
         },
         year: {
             jsType: 'number',
-            default_value:'text'
+            default_value: 'text'
         }
     },
-}];
+    dbItems: ['tables'],
+    isQuery(sql) {
+        let p = sql.indexOf(' ');
+        if (p > -1) {
+            let one = sql.substring(0, p);
+            if (one.toLowerCase() == 'select' || one.toLowerCase() == 'show') {
+                return true;
+            }
+        }
+        return false;
+    },
+    isQueryReadOnly(sql) {
+        let match = /^select\s+\*\s+from\s+`?(\w+)`?.*$/i.exec(sql)
+        if (match && match.length) {
+            return match[1];
+        }
+        return null;
+    }
+}
+mysqlTemplate.table = new MysqlTable(mysqlTemplate);
+Object.assign(mysqlTemplate, new DBTemplateCommon(mysqlTemplate))
+const sqliteTemplate = {
+    name: 'SQLite',
+    icon: 'icon-sqlite',
+    alias: 'sqlite',
+    data: {
+        name: {
+            _name: '${connection_name}',
+        },
+        databaseFile: {
+            _name: '${database_file}',
+            value: 'localhost',
+            type: 'file'
+        }
+    },
+    dropDB: true,
+    dataValidate: {
+        name: [],
+        databaseFile: []
+    },
+    dataType: {
+        integer: {
+            jsType: 'number',
+            default_value: 'text'
+        },
+        real: {
+            jsType: 'number',
+            default_value: 'text'
+        },
+        text: {
+            jsType: 'text',
+            default_value: 'text'
+        },
+        blob: {
+            jsType: 'text',
+            default_value: 'text'
+        }
+    },
+    dbItems: ['tables'],
+    isQuery(sql) {
+        let p = sql.indexOf(' ');
+        if (p > -1) {
+            let one = sql.substring(0, p);
+            if (one.toLowerCase() == 'select') {
+                return true;
+            }
+        }
+        return false;
+    },
+    isQueryReadOnly(sql) {
+        let match = /^select\s+\*\s+from\s+"?(\w+)"?.*$/i.exec(sql)
+        if (match && match.length) {
+            return match[1];
+        }
+        return null;
+    }
+}
+sqliteTemplate.table = new SqliteTable(sqliteTemplate);
+Object.assign(sqliteTemplate, new DBTemplateCommon(sqliteTemplate))
+const templates = [mysqlTemplate,sqliteTemplate]
+for (let template of templates) {
+    for (let key in template.dataValidate) {
+        template.dataValidate[key] = [validate(template)];
+    }
+}
+function validate(template) {
+    return {
+        trigger: 'blur', validator: (rule, value, callback) => {
+            if (!value) {
+                callback(new Error(template.data[rule.field].name + ' ' + global_constant.locale.required))
+                return false;
+            }
+            return true;
+        }
+    }
+}
+export default templates;

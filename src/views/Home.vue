@@ -135,7 +135,12 @@
       <el-form ref="NCF" :model="connection" :rules="db[connectionType].dataValidate" border>
         <el-form-item v-for="(item, key) in db[connectionType].data" :label="item.name" :prop="key"
           :label-width="connectionDialog.labelWidth">
-          <el-input :type="item.type || 'text'" v-model="connection[key]" autocomplete="off" maxlength="30" />
+          <template v-if="item.type == 'file'">
+            <el-input type="text" v-model="connection[key]" autocomplete="off" maxlength="30" />
+            <el-button class="link" link type="primary" @click="openFileDialog(connection, key)">...</el-button>
+          </template>
+          <el-input v-else :type="item.type || 'text'" v-model="connection[key]" autocomplete="off" maxlength="30" />
+
         </el-form-item>
       </el-form>
       <template #footer>
@@ -167,8 +172,8 @@
                 global.locale.open_database
             }}
             </el-dropdown-item>
-            <el-dropdown-item @click="refreshTable(contextmenu.data)">{{ global.locale.refresh }}</el-dropdown-item>
-            <el-dropdown-item @click="deleteDB(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
+            <el-dropdown-item v-if="dbTemplates[contextmenu.data.parent.data.dbType].dropDB"
+              @click="deleteDB(contextmenu.data)">{{ global.locale.delete }}</el-dropdown-item>
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 3">
             <!-- <el-dropdown-item @click="switchTBStatus(contextmenu.data)">{{ contextmenu.data.data.open ?
@@ -211,6 +216,9 @@ import TableEdit from '../components/table-edit.vue';
 import NewTable from '../components/new-table.vue';
 import databaseTemplate from '../assets/js/database-template';
 import databaseConnecton from '../assets/js/database-connecton';
+import TableMeta from '../components/table-meta.vue';
+import Fixed from '../components/fixed.vue';
+import ContextMenu from '../components/context-menu.vue';
 export default {
   data() {
     return {
@@ -294,14 +302,20 @@ export default {
       contextmenu: {
         visible: false,
         type: -1,
-        data: null
+        data: null,
+        rect: {
+          left: 0,
+          top: 0,
+          width: 0,
+          height: 0,
+        }
       },
       about: {
         visible: false
       }
     }
   },
-  components: { TitleBar, Codemirror, DataTable, TableEdit, NewTable },
+  components: { TitleBar, Codemirror, DataTable, TableEdit, TableMeta, Fixed, ContextMenu },
   mounted() {
     if (native && native.isInit) {
       this.init();
@@ -549,11 +563,13 @@ export default {
         cancelButtonText: this.global.locale.cancel,
         type: 'warning',
       })
-      this.use(this.getDBCByNode(node), async (db) => {
-        await db.execute('drop database ' + node.data.label);
+      try {
+        await databaseConnecton.dropDatabase(this.getDBCByNode(node), node.data.label);
         node.parent.data.items.splice(node.parent.data.items.findIndex(e => e.id == node.data.id), 1);
         this.$refs.tree.setData(this.dbc);
-      });
+      } catch (e) {
+        this.error(e);
+      }
     },
     async deleteTable(node) {
       await this.$confirm(this.format(this.global.locale.delete_tip, node.data.label), this.global.locale.prompt, {
@@ -801,11 +817,12 @@ export default {
           });
         } else {
           tab.dataType = 1;
-          let cn = await this.getConnection(dc.dbType, dc.info, db.label);
-          tab.db = cn;
-          let match = /^select\s+\*\s+from\s+(\w+).*$/i.exec(sql)
-          if (match && match.length) {
-            tab.table = match[1];
+          let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db.label);
+          tab.$cn = cn;
+          let table = databaseTemplate[dc.dbType].isQueryReadOnly(sql)
+          if (table) {
+            tab.table = table;
+            tab.columns = await this.loadTableColumn(tab, tab.table);
             tab.runId = await cn.selectAsync(sql, null, (rs) => {
               this.sqlRunEnd(tab);
               rs.splice(0, 1);
@@ -1058,25 +1075,11 @@ export default {
       this.addNewTableRow(tab);
       console.log(tab)
     },
-    addNewTableRow(tab) {
-      let emptyRow = {};
-      for (let column of tab.columns) {
-        if (column.type == 'checkbox') {
-          emptyRow[column.name] = column.default || false;
-        } else
-          emptyRow[column.name] = null;
-        if (column.type == 'select') {
-          emptyRow.selectData = [];
-        }
+    openFileDialog(connection, key) {
+      let files = await native.io.chooseFile(this.global.locale.open, false, null, 'SQLite|*.db')
+      if (files) {
+        connection[key] = files[0];
       }
-      tab.data.push(emptyRow)
-    },
-    generateTableSQL(item) {
-      let sql = 'create table `' + item.table + '`(';
-      for (let row of item.data) {
-        sql += '`' + row.name + '` ' + row.type + '(' + row.length + ') ';
-      }
-
     }
   }
 }
