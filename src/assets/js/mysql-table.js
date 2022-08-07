@@ -311,7 +311,7 @@ export default function (template) {
             let sql = '';
             for (let row of data) {
                 if (row.name == null) continue;
-                sql += `CREATE TRIGGER ${row.name} BEFORE ${row.action} ON \`${table}\` FOR EACH ROW ${row.define || ''};\n`
+                sql += `CREATE TRIGGER ${row.name} ${row.type} ${row.action} ON \`${table}\` FOR EACH ROW ${row.define || ''};\n`
             }
             return sql;
         },

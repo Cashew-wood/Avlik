@@ -63,7 +63,7 @@ export default {
     sql_preview:'SQL预览',
     unnamed:'未命名',
     save:'保存',
-    add_field:'添加字段',
+    add_row:'添加一行',
     insert_field:'插入字段',
     del_field:'删除字段',
     up_move:'上移',
@@ -96,5 +96,8 @@ export default {
     delete_row:'删除整行',
     column:'列',
     database_file:'数据库文件',
-    unique:'唯一'
+    unique:'唯一',
+    deferred:'推迟',
+    for_each:'每个',
+    update_of_fields:'更新字段'
 }

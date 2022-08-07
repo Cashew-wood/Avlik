@@ -9,7 +9,7 @@ export default function (template) {
                 if (column.key) {
                     primaryColumns.push(column.name);
                 }
-                columnInfos[column.name] = { jsType: template.dataType[column.type].jsType, ...column };
+                columnInfos[column.name] = { jsType: template.dataType[column.type] && template.dataType[column.type].jsType, ...column };
             }
             for (let row of tab.data) {
                 let change = false;

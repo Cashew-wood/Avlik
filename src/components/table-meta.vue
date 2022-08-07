@@ -8,7 +8,7 @@
             <div class="item" :class="{ 'disable': item.subtabs[subtabIndex] == null }"
                 @click="item.subtabs[subtabIndex] != null && addNewTableRow(item.subtabs[subtabIndex].columns, item.subtabs[subtabIndex].data)">
                 <CirclePlus class="add icon" />
-                <span class="label">{{ global.locale.add_field }}</span>
+                <span class="label">{{ global.locale.add_row }}</span>
             </div>
             <div class="item" :class="{ 'disable': item.subtabs[subtabIndex] == null }"
                 @click="item.subtabs[subtabIndex] != null && insertRow()">
@@ -298,14 +298,20 @@ export default {
         delRow(i) {
             this.defineNewValue.splice(i, 1);
         },
-        tabChange(index) {
+        async tabChange(index) {
             index = parseInt(index);
             try {
                 if (index == 5) {
+                    let returnObj;
                     if (this.item.design) {
-                        this.sql = dbTemplate.table.update(this.item);
+                        returnObj = dbTemplate.table.update(this.item);
                     } else {
-                        this.sql = dbTemplate.table.create(this.item);
+                        returnObj = dbTemplate.table.create(this.item);
+                    }
+                    if (returnObj.then) {
+                        this.sql = await returnObj;
+                    } else {
+                        this.sql = returnObj;
                     }
                 }
                 if (this.item.subtabs[index])
@@ -323,12 +329,18 @@ export default {
             }
             this.tableNameVisible = true;
         },
-        saveTable() {
+        async saveTable() {
             this.tableNameVisible = false;
+            let returnObj;
             if (this.item.design) {
-                this.sql = dbTemplate.table.update(this.item);
+                returnObj = dbTemplate.table.update(this.item);
             } else {
-                this.sql = dbTemplate.table.create(this.item);
+                returnObj = dbTemplate.table.create(this.item);
+            }
+            if (returnObj.then) {
+                this.sql = await returnObj;
+            } else {
+                this.sql = returnObj;
             }
             let instance = this.$loading({ target: this.$refs.newTable, fullscreen: false })
             try {
@@ -396,6 +408,7 @@ export default {
     flex: 1;
     position: relative;
 }
+
 .setting {
     height: 30% !important;
     min-height: 130px;

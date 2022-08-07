@@ -545,7 +545,7 @@ export default {
         node.data.items = []
         this.$refs.tree.setData(this.dbc);
       } else {
-        this.refreshTable(node);
+        this.nodeClick(node.data,node)
       }
     },
     refreshTable(node) {
@@ -935,7 +935,7 @@ export default {
       tab.db = tab.dbc.items[tab.dbIndex];
       console.log(tab)
     },
-    openFileDialog(connection, key) {
+    async openFileDialog(connection, key) {
       let files = await native.io.chooseFile(this.global.locale.open, false, null, 'SQLite|*.db')
       if (files) {
         connection[key] = files[0];
@@ -1150,7 +1150,25 @@ body {
   }
 }
 
-
+.connection-dialog{
+  .el-form-item__content{
+    display: flex;
+    flex-direction: row;
+    .el-input{
+      width: auto;
+      flex: 1;
+    }
+    div{
+      margin-right: 10px;
+      &:last-child{
+        margin-right: 0;
+      }
+    }
+    .link{
+      font-size: 20px;
+    }
+  }
+}
 .floor {
   height: var(--floor-height);
   display: flex;

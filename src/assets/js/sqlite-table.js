@@ -1,4 +1,6 @@
 import databaseConnecton from "./database-connecton";
+import Utils from "./utils";
+const utils = new Utils();
 export default function (template) {
     return {
         Metatable: function () {
@@ -6,8 +8,6 @@ export default function (template) {
                 name: 'fields',
                 columns: [{ name: 'name', width: 150, type: 'text' },
                 { name: 'data_type', width: 100, type: 'select', $items: Object.keys(template.dataType) },
-                { name: 'length', width: 80, type: 'number' },
-                { name: 'decimals', width: 80, type: 'number' },
                 { name: 'not_null', width: 80, type: 'checkbox' },
                 { name: 'key', width: 80, type: 'checkbox' },
                 ],
@@ -33,7 +33,7 @@ export default function (template) {
                     }
                     let form = []
                     let types = template.dataType[row.data_type];
-                 
+
                     for (let key in types) {
                         if (key == 'jsType') continue;
                         let w = '60%';
@@ -53,8 +53,8 @@ export default function (template) {
                         column.$items = tab.subtabs[0].data.filter(e => e.name != null).map(e => e.name);
                     }
                 },
-                { name: 'unique', width: 80, type: 'checkbox'},
-               ],
+                { name: 'unique', width: 80, type: 'checkbox' },
+                ],
                 data: [],
             }, {
                 name: 'foreign_keys',
@@ -65,22 +65,16 @@ export default function (template) {
                     }
                 },
                 {
-                    name: 'referenced_schema', width: 130, type: 'select', $items: [], onChangeTab: (tab, sub, column) => {
-                        column.$items = tab.dbc.items.map(e => e.label)
-                    },
-                    onChange: async (tab, subtab, row, value) => {
-                        subtab.columns[subtab.columns.findIndex(e => e.name == 'referenced_table')].$items = await databaseConnecton.getTableList(tab.dbc, tab.db.label)
-                    }
-                },
-                {
-                    name: 'referenced_table', width: 130, type: 'select', onChange: async (tab, subtab, row, value) => {
-                        subtab.columns[subtab.columns.findIndex(e => e.name == 'referenced_fields')].$items = (await databaseConnecton.getTableColumns(tab.dbc,
-                            row.referenced_schema, value)).map(e => e.name);
+                    name: 'referenced_table', width: 130, type: 'select', onChangeTab: (tab, sub, column) => {
+                        column.$items = tab.db.items[0].items.map(e => e.label)
+                    }, onChange: async (tab, subtab, row, value) => {
+                        subtab.columns[subtab.columns.findIndex(e => e.name == 'referenced_fields')].$items = (await databaseConnecton.getTableColumns(tab.dbc, tab.db.label, value)).map(e => e.name)
                     }
                 },
                 { name: 'referenced_fields', width: 250, type: 'select-multiple' },
-                { name: 'on_update', width: 100, type: 'select', $items: ['CASCADE', 'NO ACTION', 'RESTRICT', 'SET NULL'] },
-                { name: 'on_delete', width: 100, type: 'select', $items: ['CASCADE', 'NO ACTION', 'RESTRICT', 'SET NULL'] }],
+                { name: 'on_update', width: 100, type: 'select', $items: ['CASCADE', 'NO ACTION', 'RESTRICT', 'SET NULL', 'SET DEFAULT'] },
+                { name: 'on_delete', width: 100, type: 'select', $items: ['CASCADE', 'NO ACTION', 'RESTRICT', 'SET NULL', 'SET DEFAULT'] },
+                { name: 'deferred', width: 80, type: 'checkbox' }],
                 data: [],
             }, {
                 name: 'triggers',
@@ -90,6 +84,14 @@ export default function (template) {
                 },
                 {
                     name: 'action', width: 100, type: 'select', $items: ['INSERT', 'UPDATE', 'DELETE']
+                },
+                {
+                    name: 'update_of_fields', width: 250, type: 'select-multiple', onChangeTab: (tab, sub, column) => {
+                        column.$items = tab.subtabs[0].data.filter(e => e.name != null).map(e => e.name);
+                    }
+                },
+                {
+                    name: 'for_each', width: 80, type: 'checkbox'
                 }],
                 data: [],
                 panel: {
@@ -98,119 +100,68 @@ export default function (template) {
                     form: [{
                         name: 'define', type: 'code',
                     }]
+                },
+                onChange: (tab, sub, row, column) => {
+                    if (!row.define) {
+                        row.define = 'BEGIN\n\nEND'
+                    }
                 }
             }]
         },
         onCreate: async (tab) => {
-            tab.characterList = await databaseConnecton.loadCharacter(tab.dbc, tab.db.label)
             if (tab.design) {
                 let table = await databaseConnecton.getTableInfo(tab.dbc, tab.db.label, tab.table);
-                let tableSQL = (await databaseConnecton.getTableSQL(tab.dbc, tab.db.label, tab.table)).split('\n');
-                tab.comment = table.comment;
                 tab.subtabs[0].data = [];
                 for (let column of table.columns) {
-                    let pri = table.indexs[table.indexs.findIndex(e => e.Column_name == column.name && e.Key_name == 'PRIMARY')];
-                    let columnSQL = tableSQL[tableSQL.findIndex(e => e.trim().startsWith('`' + column.name + '`'))]
-                    let defaultValueIndex = columnSQL.indexOf(' DEFAULT ');
-                    let defaultValue = null;
-                    if (defaultValueIndex > -1) {
-                        let end;
-                        for (let i = defaultValueIndex + 9; i < columnSQL.length; i++) {
-                            if (columnSQL[i] == ' ' || columnSQL[i] == ',') {
-                                end = i;
-                                break;
-                            }
-                        }
-                        defaultValue = columnSQL.substring(defaultValueIndex + 9, end);
-                    }
                     tab.subtabs[0].data.push({
-                        name: column.name, data_type: column.type, length: column.length, decimals: column.decimals, not_null: !column.isNullable,
-                        key: column.key, comment: column.comment,
-                        default_value: defaultValue, unsigned: column.unsigned, value: column.value,
-                        auto_increment: column.EXTRA.indexOf('auto_increment') > -1, update_current_timestamp: column.EXTRA.indexOf('CURRENT_TIMESTAMP') > -1,
-                        key_length: pri && pri.Sub_part, character: column.characterSet, collation: column.collation
+                        name: column.name, data_type: column.type, not_null: !column.isNullable,
+                        key: column.key, default_value: column.defaultValue
                     })
                 }
-                let indexGroup = {};
-                for (let index of table.indexs) {
-                    if (index.Key_name == 'PRIMARY') continue;
-                    let ig = indexGroup[index.Key_name];
-                    if (!ig) {
-                        ig = { fields: [], type: index.Index_type, comment: index.Index_comment, Non_unique: index.Non_unique };
-                        indexGroup[index.Key_name] = ig;
-                    }
-                    ig.fields.push(index.Column_name)
-                }
-                let method = ['BTREE', 'HASH']
                 tab.subtabs[1].data = [];
-                for (let name in indexGroup) {
-                    let index = indexGroup[name];
-                    let index_method = null;
-                    let index_type = null;
-                    if (method.indexOf(index.type) > -1) {
-                        index_method = index.type;
-                        index_type = index.Non_unique == 0 ? 'UNIQUE' : 'NORMAL';
-                    } else {
-                        index_method = null;
-                        index_type = index.type;
-                    }
+                for (let index of table.indexs) {
                     tab.subtabs[1].data.push({
-                        name: name,
+                        name: index.name,
                         fields: index.fields,
-                        index_method,
-                        comment: index.comment,
-                        index_type
+                        unique: index.unique == 1
                     })
                 }
+                let tableSQL = (await databaseConnecton.getTableSQL(tab.dbc, tab.db.label, tab.table)).replaceAll('\n', ' ').replaceAll('\r', '');
                 tab.subtabs[2].data = [];
-                for (let fk of table.foreign_keys) {
-                    let columns = table.foreign_key_columns.filter(e => e.CONSTRAINT_NAME == fk.CONSTRAINT_NAME);
+                let odItems = tab.subtabs[2].columns[tab.subtabs[2].columns.findIndex(e => e.name == 'on_delete')].$items;
+                let ouItems = tab.subtabs[2].columns[tab.subtabs[2].columns.findIndex(e => e.name == 'on_update')].$items;
+                let regex = new RegExp(`CONSTRAINT\\s+["'\`]?(\\w+)["'\`]?\\s+FOREIGN\\s+KEY\\s*\\((.+?)\\)\\s+REFERENCES\\s+["'\`]?(\\w+)["'\`]?\\s*\\((.+?)\\)(\\s+ON\\s+DELETE\\s+(${odItems.join('|')}))?(\\s+ON\\s+UPDATE\\s+(${ouItems.join('|')}))?(\\s+DEFERRABLE\\s+INITIALLY\\s+DEFERRED)?(\\s+)?[,)]`, 'ig');
+                let match = null;
+                while ((match = regex.exec(tableSQL)) != null) {
                     tab.subtabs[2].data.push({
-                        name: fk.CONSTRAINT_NAME,
-                        fields: columns.map(e => e.COLUMN_NAME),
-                        referenced_schema: fk.UNIQUE_CONSTRAINT_SCHEMA,
-                        referenced_table: fk.REFERENCED_TABLE_NAME,
-                        referenced_fields: columns.map(e => e.REFERENCED_COLUMN_NAME),
-                        on_update: fk.UPDATE_RULE,
-                        on_delete: fk.DELETE_RULE
+                        name: match[1],
+                        fields: match[2].split(',').map(e => { e = e.trim(); return e.substring(1, e.length - 1) }),
+                        referenced_table: match[3],
+                        referenced_fields: match[4].split(',').map(e => { e = e.trim(); return e.substring(1, e.length - 1) }),
+                        on_update: match[6].toUpperCase(),
+                        on_delete: match[8].toUpperCase(),
+                        deferred: match[9] ? true : false
                     })
                 }
                 tab.subtabs[3].data = [];
                 for (let trigger of table.triggers) {
+                    let sql = trigger.sql.replaceAll('\n', ' ').replaceAll('\r', '');
+                    let match = /CREATE\s+TRIGGER\s+["'`]?\w+["'`]?\s+(BEFORE|AFTER)\s+(INSERT|UPDATE|DELETE)\s+(OF\s+.+?\s+)?ON\s+["'`]?\w+["'`]?\s+(FOR\s+EACH\s+ROW\s+)?(BEGIN.*?END)/ig
+                        .exec(sql);
+                    if (match == null) continue;
                     tab.subtabs[3].data.push({
-                        name: trigger.TRIGGER_NAME,
-                        type: trigger.ACTION_TIMING,
-                        action: trigger.EVENT_MANIPULATION,
-                        define: trigger.ACTION_STATEMENT
+                        name: trigger.name,
+                        type: match[1].toUpperCase(),
+                        action: match[2].toUpperCase(),
+                        define: match[5].toUpperCase()
                     })
                 }
-                tab.$tableInfo = { comment: tab.comment, datas: JSON.parse(JSON.stringify([tab.subtabs[0].data, tab.subtabs[1].data, tab.subtabs[2].data, tab.subtabs[3].data])) };
+
             }
         },
         $columnSQL(row) {
             let sql = '`' + row.name + '` ' + row.data_type;
-            if (template.dataType[row.data_type].jsType == 'text' && row.length) {
-                sql += '(' + row.length + ')';
-            } else if (row.length && template.dataType[row.data_type].jsType == 'number') {
-                sql += '(' + row.length;
-                if (row.decimals) {
-                    sql += ',' + row.decimals;
-                }
-                sql += ')'
-            }
-            if (row.value) {
-                sql += '(' + row.value + ')';
-            }
             sql += ' ';
-            if (row.character) {
-                sql += 'CHARACTER SET ' + row.character + ' ';
-            }
-            if (row.collation) {
-                sql += 'COLLATE ' + row.collation + ' ';
-            }
-            if (row.unsigned) {
-                sql += 'UNSIGNED '
-            }
             if (row.not_null) {
                 sql += 'NOT ';
             }
@@ -218,49 +169,30 @@ export default function (template) {
             if (row.default_value) {
                 sql += ` DEFAULT ${row.default_value}`;
             }
-            if (row.auto_increment) {
-                sql += ' AUTO_INCREMENT'
-            }
-            if (row.update_current_timestamp) {
-                sql += ` ON UPDATE CURRENT_TIMESTAMP`
-            }
-            if (row.comment) {
-                sql += ` COMMENT '${row.comment}'`
-            }
             return sql;
         },
-        $indexSQL(row) {
-            let sql = '';
-            if (row.index_type != 'NORMAL') {
-                sql += row.index_type + ' ';
-            }
-            sql += `INDEX \`${row.name}\`(`
+        $indexSQL(table, row) {
+            let sql = `CREATE${row.unique ? ' UNIQUE' : ''} INDEX "main"."${row.name}" ON "${table}"(`
             for (let field of row.fields) {
-                sql += '`' + field + '`,'
+                sql += '"' + field + '",'
             }
             if (row.fields.length > 0) {
                 sql = sql.substring(0, sql.length - 1);
             }
-            sql += ')';
-            if (row.index_method && row.index_type != 'FULLTEXT') {
-                sql += ' USING ' + row.index_method;
-            }
-            if (row.comment) {
-                sql += ` COMMENT '${row.comment}'`;
-            }
+            sql += ');';
             return sql;
         },
         $foreignKeySQL(row) {
             let sql = `CONSTRAINT ${row.name} FOREIGN KEY (`
             for (let field of row.fields) {
-                sql += '`' + field + '`,'
+                sql += '"' + field + '",'
             }
             if (row.fields.length > 0) {
                 sql = sql.substring(0, sql.length - 1);
             }
-            sql += ') REFERENCES `' + row.referenced_schema + '`.`' + row.referenced_table + '` (';
+            sql += ') REFERENCES "' + row.referenced_table + '" (';
             for (let field of row.referenced_fields) {
-                sql += '`' + field + '`,'
+                sql += '"' + field + '",'
             }
             if (row.fields.length > 0) {
                 sql = sql.substring(0, sql.length - 1);
@@ -272,13 +204,20 @@ export default function (template) {
             if (row.on_delete) {
                 sql += ` ON UPDATE ${row.on_delete}`;
             }
+            if (row.deferred) {
+                sql += ' DEFERRABLE INITIALLY DEFERRED';
+            }
             return sql;
         },
         $triggerSQL(table, data) {
             let sql = '';
             for (let row of data) {
                 if (row.name == null) continue;
-                sql += `CREATE TRIGGER ${row.name} BEFORE ${row.action} ON \`${table}\` FOR EACH ROW ${row.define || ''};\n`
+                let ofFileds = '';
+                if (row.action == 'UPDATE' && row.update_of_fields && row.update_of_fields.length) {
+                    ofFileds = ' OF' + row.update_of_fields.map(e => `"${e}"`).join(',');
+                }
+                sql += `CREATE TRIGGER "main"."${row.name}" ${row.type} ${row.action}${ofFileds}  ON \`${table}\`${row.for_each ? ' FOR EACH ROW' : ''} ${row.define || ''};\n`
             }
             return sql;
         },
@@ -306,14 +245,7 @@ export default function (template) {
                 }
                 sql = sql.substring(0, sql.length - 1) + '),';
             }
-            if (item.subtabs[1] && item.subtabs[1].data && item.subtabs[1].data.length) {
-                for (let row of item.subtabs[1].data) {
-                    if (row.name == null) continue;
-                    sql += '\n';
-                    sql += this.$indexSQL(row);
-                    sql += ',';
-                }
-            }
+
             if (item.subtabs[2] && item.subtabs[2].data && item.subtabs[2].data.length) {
                 for (let row of item.subtabs[2].data) {
                     if (row.name == null) continue;
@@ -329,6 +261,12 @@ export default function (template) {
                 sql += ` COMMENT = '${item.comment}'`;
             }
             sql += ';';
+            if (item.subtabs[1] && item.subtabs[1].data && item.subtabs[1].data.length) {
+                for (let row of item.subtabs[1].data) {
+                    if (row.name == null) continue;
+                    sql += '\n' + this.$indexSQL(item.table, row);
+                }
+            }
             sql += '\n' + this.$triggerSQL(item.table, item.subtabs[3].data);
             return sql;
         },
@@ -347,126 +285,22 @@ export default function (template) {
                 }
             } else return false;
         },
-        update(tab) {
-            let sql = 'ALTER TABLE `' + tab.table + '` \n';
-            let len = sql.length;
-            let foreign_keys = [];
-            for (let row of tab.subtabs[2].data) {
-                let old = tab.$tableInfo.datas[2][tab.$tableInfo.datas[2].findIndex(e => e.name == row.name)];
-                if (!old) {
-                    foreign_keys.push(row);
-                } else if (!this.$objectEquls(row, old)) {
-                    sql += 'DROP FOREIGN KEY `' + row.name + '`,\n';
-                    foreign_keys.push(row);
-                }
-            }
-            for (let row of tab.$tableInfo.datas[2]) {
-                let isDrop = tab.subtabs[2].data.findIndex(e => e.name == row.name) == -1;
-                if (isDrop) {
-                    sql += 'DROP FOREIGN KEY `' + row.name + '`,\n';
-                }
-            }
-            if (len != sql.length) {
-                sql = sql.substring(0, sql.length - 2) + ';';
-            } else {
-                sql = ''
-            }
-            sql += 'ALTER TABLE `' + tab.table + '` \n';
-            len = sql.length;
-            let last = null;
-            let priKeys = []
-            for (let row of tab.subtabs[0].data) {
-                let old = tab.$tableInfo.datas[0][tab.$tableInfo.datas[0].findIndex(e => e.name == row.name)];
-                if (old) {
-                    let diff = false
-                    for (let field in old) {
-                        if (old[field] != row[field]) {
-                            diff = true;
-                            break
-                        }
-                    }
-                    if (diff) {
-                        sql += `MODIFY COLUMN ${this.$columnSQL(row)} ${last ? 'AFTER ' + last.name : 'FIRST'},\n`
-                    }
-                    if (!old.key && row.key) {
-                        priKeys.push(row);
-                    }
-                } else {
-                    sql += `ADD COLUMN ${this.$columnSQL(row)} ${last ? 'AFTER ' + last.name : 'FIRST'},\n`
-                    if (row.key) {
-                        priKeys.push(row);
-                    }
-                }
-                last = row;
-            }
-            for (let row of tab.$tableInfo.datas[0]) {
-                let isDrop = tab.subtabs[0].data.findIndex(e => e.name == row.name) == -1;
-                if (isDrop) {
-                    sql += `DROP COLUMN \`${row.name}\`,\n`
-                    if (row.key) {
-                        sql += `DROP PRIMARY KEY,\n`
-                    }
-                }
-            }
-            if (priKeys.length > 0) {
-                sql += 'ADD PRIMARY KEY ('
-                for (let row of priKeys) {
-                    sql += '`' + row.name;
-                    if (row.key_length) {
-                        sql += '`(' + row.key_length + '),';
-                    } else {
-                        sql += '`,';
-                    }
-                }
-                sql = sql.substring(0, sql.length - 1) + ') USING BTREE,\n';
-            }
-            let indexs = [];
-            for (let row of tab.subtabs[1].data) {
-                let old = tab.$tableInfo.datas[1][tab.$tableInfo.datas[1].findIndex(e => e.name == row.name)];
-                if (!old) {
-                    indexs.push(row);
-                } else if (!this.$objectEquls(row, old)) {
-                    sql += 'DROP INDEX `' + row.name + '`,\n';
-                    indexs.push(row);
-                }
-            }
-            for (let row of tab.$tableInfo.datas[1]) {
-                let isDrop = tab.subtabs[1].data.findIndex(e => e.name == row.name) == -1;
-                if (isDrop) {
-                    sql += 'DROP INDEX `' + row.name + '`,\n';
-                }
-            }
+        async update(tab) {
+            let tempTable = `${tab.table}_${utils.randomString(8)}`;
+
+            let sql = '';
+            let indexs = await databaseConnecton.use(tab.dbc, tab.db.label, (dc) => {
+                return dc.select(`PRAGMA index_list(${tab.table});`);
+            })
+            indexs.splice(indexs.findIndex(e => e.origin == 'pk'), 1);
             for (let row of indexs) {
-                sql += 'ADD ' + this.$indexSQL(row) + ',\n';
+                sql += 'DROP INDEX "main"."' + row.name + '";\n';
             }
-            for (let row of foreign_keys) {
-                sql += 'ADD ' + this.$foreignKeySQL(row) + ',\n';
-            }
-            if (tab.comment != tab.$tableInfo.comment) {
-                sql += `COMMENT = '${tab.comment}',\n`
-            }
-            if (len != sql.length) {
-                sql = sql.substring(0, sql.length - 2) + ';\n';
-            } else {
-                sql = ''
-            }
-            let triggers = [];
-            for (let row of tab.subtabs[3].data) {
-                let old = tab.$tableInfo.datas[3][tab.$tableInfo.datas[3].findIndex(e => e.name == row.name)];
-                if (!old) {
-                    triggers.push(row);
-                } else if (!this.$objectEquls(row, old)) {
-                    sql += 'DROP TRIGGER `' + row.name + '`;\n';
-                    triggers.push(row);
-                }
-            }
-            for (let row of tab.$tableInfo.datas[3]) {
-                let isDrop = tab.subtabs[3].data.findIndex(e => e.name == row.name) == -1;
-                if (isDrop) {
-                    sql += 'DROP TRIGGER `' + row.name + '`;\n';
-                }
-            }
-            sql += this.$triggerSQL(tab.table, triggers);
+            sql += `ALTER TABLE "${tab.table}" RENAME TO "${tempTable}";\n`;
+            sql += this.create(tab)
+            let columns = tab.subtabs[0].data.map(e => `"${e.name}"`).join(',');
+            sql += `INSERT INTO "main"."${tab.table}" (${columns}) SELECT ${columns} FROM "main"."${tempTable}";\n`
+            sql += 'drop table "' + tempTable + '";';
             return sql;
         }
     }

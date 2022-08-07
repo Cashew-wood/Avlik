@@ -11,6 +11,7 @@ import en from './assets/js/locale/en.js'
 import el_en from 'element-plus/lib/locale/lang/en'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import global_constant from './assets/js/global_constant.js'
+import Utils from './assets/js/utils.js'
 let app = createApp(App)
 app.use(routes);
 app.use(ElementPlus)
@@ -34,55 +35,5 @@ app.config.globalProperties.error = function (e){
         type: 'error'
     })
 }
-app.config.globalProperties.format = function (str) {
-    let n = ''
-    let k = 1;
-    for (let i = 0; i < str.length; i++) {
-        if (str[i] == '{' && str.length > i && str[i + 1] == '}') {
-            n += arguments[k++];
-            i++;
-        } else {
-            n += str[i];
-        }
-    }
-    return n;
-}
-
-app.config.globalProperties.dateFormat = function (val) {
-    if (typeof val == 'string') {
-        if (/^\d+$/.test(val)) {
-            val = parseInt(val);
-        } else {
-            return val;
-        }
-    }
-    let d = new Date(val);
-    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')}`;
-}
-app.config.globalProperties.dateTimeFormat = function (val) {
-    if (typeof val == 'string') {
-        if (/^\d+$/.test(val)) {
-            val = parseInt(val);
-        } else {
-            return val;
-        }
-    }
-    let d = new Date(val);
-    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}-${d.getDate().toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
-}
-app.config.globalProperties.timeFormat = function (d) {
-    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}:${d.getSeconds().toString().padStart(2, '0')}`;
-}
-app.config.globalProperties.randomString = function (l) {
-    let s = '';
-    for (let i = 0; i < l; i++) {
-        let v = parseInt(Math.random() * 62);
-        if (v < 36) {
-            s += v.toString(36);
-        } else {
-            s += String.fromCharCode(65 + v - 36);
-        }
-    }
-    return s;
-}
+Object.assign(app.config.globalProperties,new Utils())
 app.mount('#app')

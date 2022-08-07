@@ -236,29 +236,29 @@ const sqliteTemplate = {
         },
         databaseFile: {
             _name: '${database_file}',
-            value: 'localhost',
+            value: '',
             type: 'file'
         }
     },
-    dropDB: true,
+    dropDB: false,
     dataValidate: {
         name: [],
         databaseFile: []
     },
     dataType: {
-        integer: {
+        INTEGER: {
             jsType: 'number',
             default_value: 'text'
         },
-        real: {
+        REAL: {
             jsType: 'number',
             default_value: 'text'
         },
-        text: {
+        TEXT: {
             jsType: 'text',
             default_value: 'text'
         },
-        blob: {
+        BLOB: {
             jsType: 'text',
             default_value: 'text'
         }
@@ -268,14 +268,14 @@ const sqliteTemplate = {
         let p = sql.indexOf(' ');
         if (p > -1) {
             let one = sql.substring(0, p);
-            if (one.toLowerCase() == 'select') {
+            if (one.toLowerCase() == 'select' || one.toLowerCase() == 'pragma') {
                 return true;
             }
         }
         return false;
     },
     isQueryReadOnly(sql) {
-        let match = /^select\s+\*\s+from\s+"?(\w+)"?.*$/i.exec(sql)
+        let match = /^select\s+\*\s+from\s+["'`]?(\w+)["'`]?.*$/i.exec(sql)
         if (match && match.length) {
             return match[1];
         }
@@ -284,7 +284,7 @@ const sqliteTemplate = {
 }
 sqliteTemplate.table = new SqliteTable(sqliteTemplate);
 Object.assign(sqliteTemplate, new DBTemplateCommon(sqliteTemplate))
-const templates = [mysqlTemplate,sqliteTemplate]
+const templates = [mysqlTemplate, sqliteTemplate]
 for (let template of templates) {
     for (let key in template.dataValidate) {
         template.dataValidate[key] = [validate(template)];

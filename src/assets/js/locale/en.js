@@ -63,7 +63,7 @@ export default {
     sql_preview:'SQL Preview',
     unnamed:'Unnamed',
     save:'Save',
-    add_field:'Add Field',
+    add_row:'Add Row',
     insert_field:'Insert Field',
     del_field:'Delete Field',
     up_move:'Move Up',
@@ -96,5 +96,8 @@ export default {
     delete_row:'Delete Row',
     column:'Column',
     database_file:'Database File',
-    unique:'Unique'
+    unique:'Unique',
+    deferred:'Deferred',
+    for_each:'For Each',
+    update_of_fields:'Update of Fields'
 }
