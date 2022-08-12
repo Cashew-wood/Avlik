@@ -199,6 +199,7 @@ import 'codemirror/addon/fold/foldcode'
 import 'codemirror/addon/fold/foldgutter'
 import 'codemirror/addon/fold/brace-fold'
 import 'codemirror/addon/fold/comment-fold'
+import SQLHint from '../assets/js/sql-hint.js';
 import DataTable from '../components/data-table.vue';
 import TableEdit from '../components/table-edit.vue';
 import databaseTemplate from '../assets/js/database-template';
@@ -545,7 +546,7 @@ export default {
         node.data.items = []
         this.$refs.tree.setData(this.dbc);
       } else {
-        this.nodeClick(node.data,node)
+        this.nodeClick(node.data, node)
       }
     },
     refreshTable(node) {
@@ -739,7 +740,7 @@ export default {
 
         }
       }
-
+      SQLHint(editor);
       let token = editor.getTokenAt(cursor);
       return { list, from: { ch: token.start, line: cursor.line }, to: { ch: token.end, line: cursor.line } }
     },
@@ -1150,25 +1151,30 @@ body {
   }
 }
 
-.connection-dialog{
-  .el-form-item__content{
+.connection-dialog {
+  .el-form-item__content {
     display: flex;
     flex-direction: row;
-    .el-input{
+
+    .el-input {
       width: auto;
       flex: 1;
     }
-    div{
+
+    div {
       margin-right: 10px;
-      &:last-child{
+
+      &:last-child {
         margin-right: 0;
       }
     }
-    .link{
+
+    .link {
       font-size: 20px;
     }
   }
 }
+
 .floor {
   height: var(--floor-height);
   display: flex;
