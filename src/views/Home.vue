@@ -87,7 +87,8 @@
                   <span>{{ global.locale.stop }}</span>
                 </div>
               </div>
-              <Codemirror :ref="'editor' + i" v-model:value="item.content" :options="cmOptions" border height="100%" />
+              <Codemirror :ref="'editor' + i" v-model:value="item.content" :options="item.editorOptions" border
+                height="100%" />
               <div class="result" v-if="item.data">
                 <div class="scroll">
                   <div v-if="item.dataType == 0" class="string">{{ item.data }}</div>
@@ -210,7 +211,7 @@ export default {
   data() {
     return {
       cmOptions: {
-        mode: "text/x-mysql",
+        mode: "text/x-sql",
         theme: "dracula",
         lineNumbers: true,
         smartIndent: true,
@@ -545,7 +546,7 @@ export default {
         node.data.items = []
         this.$refs.tree.setData(this.dbc);
       } else {
-        this.nodeClick(node.data,node)
+        this.nodeClick(node.data, node)
       }
     },
     refreshTable(node) {
@@ -682,17 +683,10 @@ export default {
         if (tab.type == 1) c++;
       }
       this.tabs.push({
-        name: name || 'Query - ' + c,
-        id: Date.now(),
-        type: 1,
-        content: ' ',
-        dcIndex,
-        dbIndex,
-        dbc: this.dbc[dcIndex],
-        db: this.dbc[dcIndex].items[dbIndex],
-        data: null,
-        columns: null,
-        dataType: null,
+        name: name || 'Query - ' + c, id: Date.now(),
+        type: 1, content: ' ', dcIndex, dbIndex, dbc: this.dbc[dcIndex], db: this.dbc[dcIndex].items[dbIndex],
+        data: null, columns: null, dataType: null,
+        editorOptions: { ... this.cmOptions, mode: databaseTemplate[this.dbc[dcIndex].dbType].editor }
       })
       let tab = this.tabs[this.tabs.length - 1];
       this.tabIndex = this.tabs.length - 1
@@ -707,12 +701,12 @@ export default {
             instance.showHint()
           })
         }, 100);
-
       })
     },
     autocomplete(editor) {
       let cursor = editor.getCursor();
       let line = editor.getLine(cursor.line)
+      let content=editor.getValue();
       let keyword = editor.tab.keywords;
       let j = line.lastIndexOf(' ');
       let word = line.substring(j == -1 ? 0 : j + 1);
@@ -736,7 +730,6 @@ export default {
               }
             }
           }
-
         }
       }
 
@@ -1150,25 +1143,30 @@ body {
   }
 }
 
-.connection-dialog{
-  .el-form-item__content{
+.connection-dialog {
+  .el-form-item__content {
     display: flex;
     flex-direction: row;
-    .el-input{
+
+    .el-input {
       width: auto;
       flex: 1;
     }
-    div{
+
+    div {
       margin-right: 10px;
-      &:last-child{
+
+      &:last-child {
         margin-right: 0;
       }
     }
-    .link{
+
+    .link {
       font-size: 20px;
     }
   }
 }
+
 .floor {
   height: var(--floor-height);
   display: flex;

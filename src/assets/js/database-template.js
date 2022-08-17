@@ -6,6 +6,7 @@ const mysqlTemplate = {
     name: 'MySQL',
     icon: 'icon-mysql',
     alias: 'mysql',
+    editor:'text/x-mysql',
     data: {
         name: {
             _name: '${connection_name}',
@@ -230,6 +231,7 @@ const sqliteTemplate = {
     name: 'SQLite',
     icon: 'icon-sqlite',
     alias: 'sqlite',
+    editor:'text/x-sqlite',
     data: {
         name: {
             _name: '${connection_name}',
