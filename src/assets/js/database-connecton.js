@@ -118,7 +118,7 @@ export default {
         let dbType = databaseTemplate[dbc.dbType].alias;
         return this.use(dbc, dbName, async (dc) => {
             if (dbType == 'mysql') {
-                return (await dc.select('show create table `' + tableName + '`'))[0]['Create Table'];
+                return (await dc.select('show create table ' + databaseTemplate[dbc.dbType].symbolLeft + tableName + databaseTemplate[dbc.dbType].symbolRight))[0]['Create Table'];
             } else if (dbType == 'sqlite') {
                 return (await dc.select(`SELECT * FROM sqlite_master WHERE type='table' and name = "${tableName}"`))[0].sql;
             }
@@ -165,7 +165,7 @@ export default {
                             } else {
                                 let values = value.split(',');
                                 if (values.length > 1) {
-                                    length = values[1];
+                                    length = values[0];
                                     decimals = values[1];
                                 } else {
                                     length = value;
@@ -223,12 +223,12 @@ export default {
         })
     },
     getTableDataPage(dbc, dbName, table, page, size, sqlCallback) {
-        let sql = `select * from ${table} limit ${(page - 1) * size}, ${size}`;
+        let sql = `select * from \`${table}\` limit ${(page - 1) * size}, ${size}`;
         sqlCallback && sqlCallback(sql);
         return this.use(dbc, dbName, async (dc) => {
             return {
                 data: await dc.select(sql),
-                total: (await dc.select(`select count(*) count from ${table}`))[0].count
+                total: (await dc.select(`select count(*) count from \`${table}\``))[0].count
             }
         })
     }

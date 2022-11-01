@@ -20,10 +20,10 @@ export default function (template) {
                         if (row[column] != row[global_constant.hiddenFieldPrefix + column]) {
                             let info = columnInfos[column];
                             if (row[column] == null)
-                                set += `${column}=null,`;
+                                set += `${template.symbolLeft}${column}${template.symbolRight}=null,`;
                             else if (info.jsType == 'number')
-                                set += `${column}=${row[column]},`;
-                            else set += `${column}='${row[column]}',`;
+                                set += `${template.symbolLeft}${column}${template.symbolRight}=${row[column]},`;
+                            else set += `${template.symbolLeft}${column}${template.symbolRight}='${row[column]}',`;
                             change = true;
                         }
                     }
@@ -31,7 +31,7 @@ export default function (template) {
                         let primaryColumnData = '';
                         for (let column of primaryColumns) {
                             let info = columnInfos[column];
-                            primaryColumnData += `${column}=`;
+                            primaryColumnData += `${template.symbolLeft}${column}${template.symbolRight}=`;
                             if (row[column] == null)
                                 primaryColumnData += 'null and ';
                             else if (info.jsType == 'number')
@@ -40,14 +40,14 @@ export default function (template) {
                             change = true;
                         }
                         primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
-                        sql += `update ${tab.table} set ${set.substring(0, set.length - 1)} where ${primaryColumnData};`
+                        sql += `update ${template.symbolLeft}${tab.table}${template.symbolRight} set ${set.substring(0, set.length - 1)} where ${primaryColumnData};`
                     }
                 } else if (row[global_constant.hiddenFieldState] == 'insert') {
                     let columns = '('
                     let values = 'values(';
                     for (let column in row) {
                         if (column.startsWith(global_constant.hiddenFieldPrefix)) continue;
-                        columns += column + ','
+                        columns += template.symbolLeft + column + template.symbolRight + ','
                         let info = columnInfos[column];
                         if (row[column] == null)
                             values += 'null,';
@@ -57,12 +57,12 @@ export default function (template) {
                     }
                     columns = columns.substring(0, columns.length - 1) + ')';
                     values = values.substring(0, values.length - 1) + ')';
-                    sql += `insert into ${tab.table}${columns} ${values};`;
+                    sql += `insert into ${template.symbolLeft}${tab.table}${template.symbolRight}${columns} ${values};`;
                 } else if (row[global_constant.hiddenFieldState] == 'delete') {
                     let primaryColumnData = '';
                     for (let column of primaryColumns) {
                         let info = columnInfos[column];
-                        primaryColumnData += `${column}=`;
+                        primaryColumnData += `${template.symbolLeft}${column}${template.symbolRight}=`;
                         if (row[column] == null)
                             primaryColumnData += 'null and ';
                         else if (info.jsType == 'number')
@@ -71,7 +71,7 @@ export default function (template) {
                         change = true;
                     }
                     primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
-                    sql += `delete from ${tab.table} where ${primaryColumnData};`
+                    sql += `delete from ${template.symbolLeft}${tab.table}${template.symbolRight} where ${primaryColumnData};`
                 }
             }
             return sql;
@@ -85,7 +85,7 @@ export default function (template) {
             }
             for (let column in row) {
                 if (column.startsWith(global_constant.hiddenFieldPrefix)) continue;
-                columns += column + ','
+                columns += template.symbolLeft + column + template.symbolRight  + ','
                 let info = columnInfos[column];
                 if (row[column] == null)
                     values += 'null,';
@@ -95,7 +95,7 @@ export default function (template) {
             }
             columns = columns.substring(0, columns.length - 1) + ')';
             values = values.substring(0, values.length - 1) + ')';
-            return `insert into ${tab.table}${columns} ${values};`;
+            return `insert into ${template.symbolLeft}${tab.table}${template.symbolRight}${columns} ${values};`;
         },
         onCopyRowUpdate(tab, row) {
             let set = '';
@@ -111,7 +111,7 @@ export default function (template) {
                 if (column.startsWith(global_constant.hiddenFieldPrefix)) continue;
                 let info = columnInfos[column];
                 if (row[column] == null)
-                    values += `${column}=null,`;
+                    values += `${template.symbolLeft}${column}${template.symbolRight}=null,`;
                 else if (info.jsType == 'number')
                     set += `${column}=${row[column]},`;
                 else set += `${column}='${row[column]}',`;
@@ -119,7 +119,7 @@ export default function (template) {
             let primaryColumnData = '';
             for (let column of primaryColumns) {
                 let info = columnInfos[column];
-                primaryColumnData += `${column}=`;
+                primaryColumnData += `${template.symbolLeft}${column}${template.symbolRight}=`;
                 if (row[column] == null)
                     primaryColumnData += 'null and ';
                 else if (info.jsType == 'number')
@@ -127,7 +127,7 @@ export default function (template) {
                 else primaryColumnData += `'${row[column]}' and `
             }
             primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
-            return `update ${tab.table} set ${set.substring(0, set.length - 1)} where ${primaryColumnData};`
+            return `update ${template.symbolLeft}${tab.table}${template.symbolRight} set ${set.substring(0, set.length - 1)} where ${primaryColumnData};`
         }
     }
 
