@@ -64,46 +64,48 @@
       <div class="main_panel">
         <el-tabs closable type="card" class="tabs" @tab-remove="tabClose" v-model="tabIndex">
           <el-tab-pane v-for="(item, i) in tabs" :key="i" :label="item.name" class="tab-panel" :name="i">
-            <div class="table_panel" v-if="item.type == 0">
-              <div class="scroll">
-                <DataTable :item="item" :loadTableData="loadTableData"></DataTable>
-              </div>
-            </div>
-            <div v-if="item.type == 1" class="code">
-              <div class="code_tool">
-                <el-select v-model="item.dcIndex" class="m-2" placeholder="Select">
-                  <el-option v-for="(item, i) in dbc" :key="item.id" :label="item.label" :value="i" />
-                </el-select>
-                <el-select v-model="item.dbIndex" class="m-2" placeholder="Select" @change="selectDB(item)">
-                  <el-option v-if="item.dcIndex != null" v-for="(item, i) in dbc[item.dcIndex].items" :key="item.id"
-                    :label="item.label" :value="i" />
-                </el-select>
-                <div class="item" :class="item.run ? 'disable' : ''" @click="!item.run && runSQL(item)">
-                  <span class="iconfont primary icon-zhihang"></span>
-                  <span>{{ global.locale.run }}</span>
-                </div>
-                <div class="item" :class="item.run ? '' : 'disable'" @click="item.run && stopSQL(item)">
-                  <span class="iconfont error icon-tingzhi"></span>
-                  <span>{{ global.locale.stop }}</span>
-                </div>
-              </div>
-              <Codemirror :ref="'editor' + i" v-model:value="item.content" :options="item.editorOptions" border
-                height="100%" />
-              <div class="result" v-if="item.data">
+            <div class="pane">
+              <div class="table_panel" v-if="item.type == 0">
                 <div class="scroll">
-                  <div v-if="item.dataType == 0" class="string">{{ item.data }}</div>
-                  <DataTable v-if="item.dataType == 1" :item="item"></DataTable>
+                  <DataTable :item="item" :loadTableData="loadTableData"></DataTable>
                 </div>
               </div>
-            </div>
-            <TableMeta v-if="item.type == 2" :item="item" @add="addNewTable(item)">
-            </TableMeta>
-            <div class="floor">
-              <div class="floor-left">
-                {{ item.explain }}
+              <div v-if="item.type == 1" class="code">
+                <div class="code_tool">
+                  <el-select v-model="item.dcIndex" class="m-2" placeholder="Select">
+                    <el-option v-for="(item, i) in dbc" :key="item.id" :label="item.label" :value="i" />
+                  </el-select>
+                  <el-select v-model="item.dbIndex" class="m-2" placeholder="Select" @change="selectDB(item)">
+                    <el-option v-if="item.dcIndex != null" v-for="(item, i) in dbc[item.dcIndex].items" :key="item.id"
+                      :label="item.label" :value="i" />
+                  </el-select>
+                  <div class="item" :class="item.run ? 'disable' : ''" @click="!item.run && runSQL(item, i)">
+                    <span class="iconfont primary icon-zhihang"></span>
+                    <span>{{ global.locale.run }}</span>
+                  </div>
+                  <div class="item" :class="item.run ? '' : 'disable'" @click="item.run && stopSQL(item)">
+                    <span class="iconfont error icon-tingzhi"></span>
+                    <span>{{ global.locale.stop }}</span>
+                  </div>
+                </div>
+                <Codemirror :ref="'editor' + i" v-model:value="item.content" :options="item.editorOptions" border
+                  height="100%" />
+                <div class="result" v-if="item.data">
+                  <div class="scroll">
+                    <div v-if="item.dataType == 0" class="string">{{ item.data }}</div>
+                    <DataTable v-if="item.dataType == 1" :item="item"></DataTable>
+                  </div>
+                </div>
               </div>
-              <div class="floor-right">
-                {{ item.time ? format(global.locale.elapsed_time, item.time) + 's' : '' }}
+              <TableMeta v-if="item.type == 2" :item="item" @add="addNewTable(item)">
+              </TableMeta>
+              <div class="floor">
+                <div class="floor-left">
+                  {{ item.explain }}
+                </div>
+                <div class="floor-right">
+                  {{ item.time ? format(global.locale.elapsed_time, item.time) + 's' : '' }}
+                </div>
               </div>
             </div>
           </el-tab-pane>
@@ -214,6 +216,7 @@ export default {
         mode: "text/x-sql",
         theme: "dracula",
         lineNumbers: true,
+        lineWrapping: true,
         smartIndent: true,
         indentUnit: 2,
         foldGutter: true,
@@ -706,7 +709,7 @@ export default {
     autocomplete(editor) {
       let cursor = editor.getCursor();
       let line = editor.getLine(cursor.line)
-      let content=editor.getValue();
+      let content = editor.getValue();
       let keyword = editor.tab.keywords;
       let j = line.lastIndexOf(' ');
       let word = line.substring(j == -1 ? 0 : j + 1);
@@ -736,8 +739,7 @@ export default {
       let token = editor.getTokenAt(cursor);
       return { list, from: { ch: token.start, line: cursor.line }, to: { ch: token.end, line: cursor.line } }
     },
-    async runSQL(tab) {
-      console.log(tab)
+    async runSQL(tab, tabIndex) {
       tab.selected = null;
       let dc = tab.dbc;
       let db = tab.db;
@@ -747,7 +749,9 @@ export default {
         tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
       }, 50);
       try {
-        let sql = tab.content.trim();
+        console.log('editor' + tabIndex,this.$refs)
+        let sql = this.$refs['editor' + tabIndex][0].cminstance.getSelection() || tab.content.trim();
+        console.log('selection:' + sql)
         let execute = !databaseTemplate[dc.dbType].isQuery(sql);
         tab.run = true;
         tab.sql = sql;
@@ -1083,6 +1087,14 @@ body {
           bottom: 0;
           top: 0;
         }
+      }
+
+      .pane {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: 0;
       }
 
       .code {
