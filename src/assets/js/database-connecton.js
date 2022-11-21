@@ -146,11 +146,13 @@ export default {
         });
     },
     getTableColumns(dbc, dbName, tableName) {
+        let p = tableName.lastIndexOf('.');
+        tableName = tableName.substring(0, p == -1 ? tableName.length : p);
         let dbType = databaseTemplate[dbc.dbType].alias;
         return this.use(dbc, async (dc) => {
             let columns = []
             if (dbType == 'mysql') {
-                let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA = '${dbName}' and TABLE_NAME = '${tableName}'`);
+                let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA = '${dbName}' and LOWER(TABLE_NAME) = LOWER('${tableName}')`);
                 for (let row of tableCoumns) {
                     let k = row.COLUMN_TYPE.indexOf('(');
                     let value = k > -1 ? row.COLUMN_TYPE.substring(k + 1, row.COLUMN_TYPE.lastIndexOf(')')) : null;

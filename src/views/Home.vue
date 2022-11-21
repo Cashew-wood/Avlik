@@ -209,6 +209,7 @@ import databaseConnecton from '../assets/js/database-connecton';
 import TableMeta from '../components/table-meta.vue';
 import Fixed from '../components/fixed.vue';
 import ContextMenu from '../components/context-menu.vue';
+import autocomplete from '../assets/js/autocomplete';
 export default {
   data() {
     return {
@@ -223,7 +224,7 @@ export default {
         styleActiveLine: true,
         autofocus: true,
         hintOptions: {
-          hint: this.autocomplete,
+          hint: autocomplete,
           completeSingle: false
         }
       },
@@ -611,7 +612,7 @@ export default {
         data: [],
         columns: [],
         data_index: 1,
-        data_size: 100,
+        data_size: 200,
         data_total: null,
         dbc: this.dbc[path[0]],
         db: this.dbc[path[0]].items[path[1]],
@@ -706,39 +707,6 @@ export default {
         }, 100);
       })
     },
-    autocomplete(editor) {
-      let cursor = editor.getCursor();
-      let line = editor.getLine(cursor.line)
-      let content = editor.getValue();
-      let keyword = editor.tab.keywords;
-      let j = line.lastIndexOf(' ');
-      let word = line.substring(j == -1 ? 0 : j + 1);
-      let list = []
-      if (word.length) {
-        for (let s in keyword) {
-          if (s.startsWith(word)) {
-            list.push(s);
-          }
-        }
-        if (editor.tab.dbc != null) {
-          for (let s of editor.tab.dbc.items) {
-            if (s.label.startsWith(word)) {
-              list.push(s.label);
-            }
-          }
-          for (let item of editor.tab.db.items) {
-            for (let s of item.items) {
-              if (s.label.startsWith(word)) {
-                list.push(s.label);
-              }
-            }
-          }
-        }
-      }
-
-      let token = editor.getTokenAt(cursor);
-      return { list, from: { ch: token.start, line: cursor.line }, to: { ch: token.end, line: cursor.line } }
-    },
     async runSQL(tab, tabIndex) {
       tab.selected = null;
       let dc = tab.dbc;
@@ -749,7 +717,7 @@ export default {
         tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
       }, 50);
       try {
-        console.log('editor' + tabIndex,this.$refs)
+        console.log('editor' + tabIndex, this.$refs)
         let sql = this.$refs['editor' + tabIndex][0].cminstance.getSelection() || tab.content.trim();
         console.log('selection:' + sql)
         let execute = !databaseTemplate[dc.dbType].isQuery(sql);

@@ -111,6 +111,7 @@ export default {
     },
     mounted() {
         this.dbTemplate = databaseTemplate[this.item.dbc.dbType];
+        console.log(this.item);
     },
     methods: {
         tableEditBoxHide(item, row, columnName) {
