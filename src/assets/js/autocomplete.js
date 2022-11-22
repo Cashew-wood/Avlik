@@ -178,14 +178,20 @@ export default async function (editor) {
         }
         const p = word.lastIndexOf(".");
         let before = word.substring(0, p == -1 ? word.length : p);
+        let after = p == -1 ? null : word.substring(p + 1);
         let limitDB = editor.tab.db.label;
-        for (let table of tableList) {
-            if (table.alias == before) {
-                before = table.table;
-                const sp = before.split('.');
-                if (sp.length == 2) {
-                    limitDB = sp[0];
-                    before = sp[1];
+        if (tableList.length == 1 && !tableList[0].alias && firstKeywords[0]?.value != 'from') {
+            after = before;
+            before = tableList[0].table;
+        } else {
+            for (let table of tableList) {
+                if (table.alias == before) {
+                    before = table.table;
+                    const sp = before.split('.');
+                    if (sp.length == 2) {
+                        limitDB = sp[0];
+                        before = sp[1];
+                    }
                 }
             }
         }
@@ -196,12 +202,11 @@ export default async function (editor) {
             editor.tab.dbc.items[editor.tab.dbIndex] = { ...editor.tab.db, items: mainDBTables };
         }
         const match = findMatchObj(editor.tab.dbc, before, p > -1, limitDB);
-        if (p != -1) {
-            let after = word.substring(p + 1);
+        if (after != null) {
             for (let item of match) {
                 if (item.type == 'db') {
                     let tables = item.value.items[0]?.items;
-                    if (!tables.length) {
+                    if (!tables || !tables.length) {
                         tables = [{ items: (await databaseConnecton.getTableList(editor.tab.dbc, item.value.label)).map(e => { return { label: e } }) }];
                     }
                     const child = findTableMatchObj({ ...db, items: tables }, after, false)

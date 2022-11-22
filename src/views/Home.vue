@@ -255,7 +255,7 @@ export default {
         _name: '${help}',
         items: [{
           _name: '${check_update}',
-          invoke: () => { this.$alert(this.global.locale.no_update, 'Prompt') }
+          invoke: () => { this.$alert(this.global.locale.no_update, this.global.locale.prompt) }
         }, {
           name: '中文（简体）',
           invoke: () => { this.setDisplayLocale('zh-cn') },
