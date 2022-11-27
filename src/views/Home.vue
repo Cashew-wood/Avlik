@@ -113,7 +113,7 @@
       </div>
     </div>
     <el-dialog v-model="connectionDialog.visible" :title="global.locale.new_connection" width="50%"
-      ref="connectionDialog" custom-class="connection-dialog">
+      ref="connectionDialog" class="connection-dialog">
       <el-form ref="NCF" :model="connection" :rules="dbTemplates[connectionDialog.dbType].dataValidate" border>
         <el-form-item v-for="(item, key) in dbTemplates[connectionDialog.dbType].data" :label="item.name" :prop="key"
           :label-width="connectionDialog.labelWidth">
@@ -181,8 +181,6 @@
   </div>
 </template>
 <script>
-
-let treeId = 0;
 import TitleBar from '../components/title-bar.vue';
 
 import Codemirror from "codemirror-editor-vue3";
@@ -210,7 +208,12 @@ import TableMeta from '../components/table-meta.vue';
 import Fixed from '../components/fixed.vue';
 import ContextMenu from '../components/context-menu.vue';
 import autocomplete from '../assets/js/autocomplete';
+import menu from '../assets/js/menu'
+import common from '../assets/js/common'
+import leftTree from '../assets/js/left-tree'
+import toolbar from '../assets/js/toolbar'
 export default {
+  mixins: [common, menu, leftTree, toolbar],
   data() {
     return {
       cmOptions: {
@@ -230,45 +233,6 @@ export default {
       },
       show_navigation: true,
       show_tool: true,
-      menu: [{
-        _name: '${file}',
-        items: [{
-          _name: '${open_sql_file}',
-          invoke: this.chooseFile
-        }, {
-          _name: '${exit}',
-          divided: true,
-          invoke: () => { native.window.close() }
-        }]
-      }, {
-        _name: '${look}',
-        items: [{
-          _name: '${hide_navigation}',
-          icon: '',
-          invoke: (e) => { this.show_navigation = !this.show_navigation; e.icon = this.show_navigation ? '' : 'Check'; }
-        }, {
-          _name: '${hide_tool}',
-          icon: '',
-          invoke: (e) => { this.show_tool = !this.show_tool; e.icon = this.show_tool ? '' : 'Check'; }
-        }]
-      }, {
-        _name: '${help}',
-        items: [{
-          _name: '${check_update}',
-          invoke: () => { this.$alert(this.global.locale.no_update, this.global.locale.prompt) }
-        }, {
-          name: '中文（简体）',
-          invoke: () => { this.setDisplayLocale('zh-cn') },
-          divided: true
-        }, {
-          name: 'English',
-          invoke: () => { this.setDisplayLocale('en') },
-        }, {
-          _name: '${about}',
-          divided: true,
-          invoke: async () => { this.$alert(`Name:${await native.window.title}<br/>Vserion:${await native.app.version}`, this.global.locale.prompt, { dangerouslyUseHTMLString: true }) }
-        }]
-      }],
       dbc: [],
       connectionDialog: {
         id: null,
@@ -291,9 +255,6 @@ export default {
           height: 0,
         }
       },
-      about: {
-        visible: false
-      },
       renameDialog: {
         type: null,
         value: null,
@@ -314,24 +275,6 @@ export default {
     this.loadStorage();
   },
   methods: {
-    setLocale(obj) {
-      for (let key in obj) {
-        if (key.startsWith('$')) continue;
-        let val = obj[key];
-        let t = typeof (val);
-        if (t == 'function' || t == 'number' || t == 'boolean' || t == 'bigint' || t == 'undefined') continue;
-        else if (Array.isArray(val)) {
-          for (let item of val) this.setLocale(item);
-        } else if (t == 'object') {
-          this.setLocale(val)
-        } else if (t == 'string' && val.startsWith('${')) {
-          obj[key.substring(1)] = this.global.locale[val.substring(2, val.length - 1)];
-          if (this.global.locale[val.substring(2, val.length - 1)] == null) {
-            console.log(val, this.global.locale, val.substring(2, val.length - 1))
-          }
-        }
-      }
-    },
     async init() {
       console.log(native)
       native.window.show();
@@ -341,76 +284,12 @@ export default {
       native.window.showCenter();
       native.window.addDragMoveArea(0, 0, 20000, 40);
     },
-    async nodeClick(data, node, e) {
-      if (data.items && data.items.length > 0) return;
-      let loading = null;
-      let loadingId = setTimeout(() => {
-        loading = this.$loading({ target: this.$refs.main_left })
-      }, 100);
-      try {
-        if (node.level == 1) {
-          await this.refreshCN(node);
-        } else if (node.level == 2) {
-          node.data.items = databaseTemplate[this.getDBCByNode(node).dbType].dbItems.map(e => {
-            return {
-              id: treeId++,
-              label: this.global.locale[e],
-              items: [],
-              type: e
-            }
-          });
-          this.$refs.tree.setData(this.dbc);
-        } else if (node.level == 3) {
-          if (node.data.type == 'tables') {
-            await this.refreshTable(node);
-          }
-        }
-      } catch (e) {
-        this.error(e);
-      } finally {
-        clearTimeout(loadingId)
-        loading && loading.close();
-      }
-    },
     doubleItem(node) {
       if (node.data.type == 'tables') {
         this.openTable(node.data, node.parent.data);
       } else if (node.data.type == 'views') {
 
       }
-    },
-    openConnectionDialog(i) {
-      let current = databaseTemplate[i];
-      for (let key in current.data) {
-        this.connection[key] = current.data[key].value;
-      }
-      this.connectionDialog.dbType = i;
-      this.connectionDialog.visible = true;
-      this.connectionDialog.edit = false;
-    },
-    addConnection() {
-      this.$refs.NCF.validate(async (vaild) => {
-        if (vaild) {
-          if (!this.connectionDialog.edit) {
-            this.connectionDialog.visible = false;
-            this.addConnectionByInfo(this.connection, this.connectionDialog.dbType);
-            this.$refs.tree.setData(this.dbc);
-          } else {
-            this.connectionDialog.visible = false;
-            this.dbc[this.dbc.findIndex(e => e.id == this.connectionDialog.id)].info = this.connection;
-          }
-          this.storage();
-        }
-      })
-    },
-    addConnectionByInfo(info, type) {
-      this.dbc.push({
-        id: treeId++,
-        label: info.name,
-        items: [],
-        dbType: type,
-        info
-      })
     },
     storage() {
       let connection = [];
@@ -423,7 +302,7 @@ export default {
       let connection = localStorage.getItem('dbc')
       if (connection) {
         connection = JSON.parse(connection);
-        for (let dc of connection) {
+        for (let dc of this.dbc) {
           this.addConnectionByInfo(dc.info, dc.type);
         }
       }
@@ -465,35 +344,6 @@ export default {
         this.contextmenu.visible = e;
       }, 200)
     },
-    nodeMenu(e, data, node) {
-      if (this.contextmenu.visible) {
-        this.$refs.contextmenu.handleClose();
-        setTimeout(() => {
-          this.contextmenu.visible = false;
-          this.nodeMenu(e, data, node)
-        }, 50);
-        return;
-      }
-      this.contextmenu.visible = true;
-      let parent;
-      for (let dom of e.path) {
-        for (let cl of dom.classList) {
-          if (cl == 'el-tree-node') {
-            parent = dom;
-            break;
-          }
-        }
-        if (parent) break;
-      }
-      this.contextmenu.type = 0;
-      let rect = parent.getBoundingClientRect();
-      this.contextmenu.data = node;
-      this.contextmenu.rect.top = rect.top + 'px';
-      this.contextmenu.rect.left = rect.left + 'px';
-      this.contextmenu.rect.width = rect.width + 'px';
-      this.contextmenu.rect.height = rect.height + 'px';
-      this.$refs.contextmenu.handleOpen();
-    },
     async editCN(node) {
       if (node.data.items.length) {
         await this.$confirm(this.global.locale.close_connect_tip, this.global.locale.prompt, {
@@ -509,24 +359,6 @@ export default {
       this.connectionDialog.edit = true;
       this.connectionDialog.id = node.data.id;
     },
-    async refreshCN(node) {
-      try {
-        let dbs = await databaseConnecton.databaseList(this.getDBCByNode(node));
-        for (let obj of dbs) {
-          if (node.data.items.findIndex(e => e.label == obj.name) == -1) {
-            node.data.items.push({
-              id: treeId++,
-              label: obj.name,
-              items: [],
-              db: node.data.db
-            })
-          }
-        }
-        this.$refs.tree.setData(this.dbc);
-      } catch (e) {
-        this.error(e);
-      }
-    },
     async removeCN(node) {
       await this.$confirm(this.format(this.global.locale.delete_tip, node.data.label), this.global.locale.prompt, {
         confirmButtonText: this.global.locale.ok,
@@ -535,16 +367,6 @@ export default {
       })
       this.closeConnection(node.data, true);
     },
-    menuItem(man, sub) {
-      sub.invoke(sub);
-      console.log(sub)
-    },
-    setDisplayLocale(lang) {
-      this.setCurrentLocale(lang);
-      this.setLocale(this.dbTemplates)
-      this.setLocale(this.menu)
-      localStorage.setItem('lang', lang);
-    },
     async switchDBStatus(node) {
       if (node.data.items.length) {
         node.data.items = []
@@ -552,25 +374,6 @@ export default {
       } else {
         this.nodeClick(node.data, node)
       }
-    },
-    refreshTable(node) {
-      return this.refreshTableByDB(this.getDBCByNode(node), node.level == 1 ? node.data : (node.level == 4 ? node.parent.parent.data : node.parent.data));
-    },
-    async refreshTableByDB(dbcData, dbData) {
-      let list = await databaseConnecton.getTableList(dbcData, dbData.label);
-      let tableData = dbData.items[dbData.items.findIndex(e => e.type == 'tables')]
-      for (let s of list) {
-        if (tableData.items.findIndex(e => e.label == s) == -1) {
-          tableData.items.push({
-            id: treeId++,
-            label: s,
-            items: [],
-            type: 'tables'
-          })
-        }
-      }
-      tableData.items.sort((a, b) => a.label.localeCompare(b.label));
-      this.$refs.tree.setData(this.dbc);
     },
     async deleteDB(node) {
       console.log(this.global.locale)
@@ -646,28 +449,6 @@ export default {
         this.error(e);
       }
     },
-    getNodeDataPathById(id) {
-      let root = [{ path: [], items: this.dbc }];
-      let find = null;
-      do {
-        let list = []
-        for (let obj of root) {
-          let k = 0;
-          for (let node of obj.items) {
-            if (node.id == id) {
-              find = { path: obj.path.concat([k]), data: node };
-              break
-            } else {
-              list.push({ path: obj.path.concat([k]), items: node.items })
-            }
-            k++;
-          }
-        }
-        if (find) break
-        root = list;
-      } while (root.length);
-      return find;
-    },
     newSQLQuery() {
       let id = this.$refs.tree.getCurrentKey();
       if (!id) {
@@ -717,7 +498,6 @@ export default {
         tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
       }, 50);
       try {
-        console.log('editor' + tabIndex, this.$refs)
         let sql = this.$refs['editor' + tabIndex][0].cminstance.getSelection() || tab.content.trim();
         console.log('selection:' + sql)
         let execute = !databaseTemplate[dc.dbType].isQuery(sql);
@@ -810,14 +590,6 @@ export default {
         this.tabIndex = this.tabIndex - 1;
       }
     },
-    async chooseFile() {
-      let files = await native.io.chooseFile(this.global.locale.open, false, null, 'SQL|*.sql')
-      if (files) {
-        let file = files[0];
-        let content = await native.io.readToText(file, 'utf-8');
-        this.openSQLPanel(file.substring(file.lastIndexOf('\\') + 1, file.lastIndexOf('.')), content);
-      }
-    },
     addTable(node) {
       let path = this.getNodeDataPathById(node.data.id).path;
       let dbc = this.dbc[path[0]];
@@ -847,7 +619,6 @@ export default {
         db: dbc.items[path[1]],
         design: true
       })
-      console.log(this.tabs[this.tabs.length - 1])
       this.tabIndex = this.tabs.length - 1;
     },
     addNewTable(item) {
@@ -899,12 +670,6 @@ export default {
       tab.dbc = this.dbc[tab.dcIndex];
       tab.db = tab.dbc.items[tab.dbIndex];
       console.log(tab)
-    },
-    async openFileDialog(connection, key) {
-      let files = await native.io.chooseFile(this.global.locale.open, false, null, 'SQLite|*.db')
-      if (files) {
-        connection[key] = files[0];
-      }
     }
   }
 }
