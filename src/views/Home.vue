@@ -302,7 +302,7 @@ export default {
       let connection = localStorage.getItem('dbc')
       if (connection) {
         connection = JSON.parse(connection);
-        for (let dc of this.dbc) {
+        for (let dc of connection) {
           this.addConnectionByInfo(dc.info, dc.type);
         }
       }
