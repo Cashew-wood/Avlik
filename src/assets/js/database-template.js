@@ -6,12 +6,13 @@ const mysqlTemplate = {
     name: 'MySQL',
     icon: 'icon-mysql',
     alias: 'mysql',
-    editor:'text/x-mysql',
-    symbolLeft:'`',
-    symbolRight:'`',
+    editor: 'text/x-mysql',
+    symbolLeft: '`',
+    symbolRight: '`',
     data: {
         name: {
             _name: '${connection_name}',
+            len: 30
         },
         host: {
             _name: '${host}',
@@ -20,15 +21,16 @@ const mysqlTemplate = {
         port: {
             _name: '${port}',
             value: '3306',
-            type: 'number'
+            type: 'number',
+            len: 6
         },
         user: {
             _name: '${user_name}',
-            value: 'root'
+            value: 'root',
         },
         pwd: {
             _name: '${password}',
-            type: 'password'
+            type: 'password',
         }
     },
     dropDB: true,
@@ -233,12 +235,13 @@ const sqliteTemplate = {
     name: 'SQLite',
     icon: 'icon-sqlite',
     alias: 'sqlite',
-    editor:'text/x-sqlite',
-    symbolLeft:'[',
-    symbolRight:']',
+    editor: 'text/x-sqlite',
+    symbolLeft: '[',
+    symbolRight: ']',
     data: {
         name: {
             _name: '${connection_name}',
+            len: 30
         },
         databaseFile: {
             _name: '${database_file}',

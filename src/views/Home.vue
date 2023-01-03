@@ -118,11 +118,10 @@
         <el-form-item v-for="(item, key) in dbTemplates[connectionDialog.dbType].data" :label="item.name" :prop="key"
           :label-width="connectionDialog.labelWidth">
           <template v-if="item.type == 'file'">
-            <el-input type="text" v-model="connection[key]" autocomplete="off" maxlength="30" />
+            <el-input type="text" v-model="connection[key]" autocomplete="off"/>
             <el-button class="link" link type="primary" @click="openFileDialog(connection, key)">...</el-button>
           </template>
-          <el-input v-else :type="item.type || 'text'" v-model="connection[key]" autocomplete="off" maxlength="30" />
-
+          <el-input v-else :type="item.type || 'text'" v-model="connection[key]" autocomplete="off" :maxlength="item.len || 200" />
         </el-form-item>
       </el-form>
       <template #footer>
