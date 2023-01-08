@@ -85,7 +85,7 @@ export default function (template) {
             }
             for (let column in row) {
                 if (column.startsWith(global_constant.hiddenFieldPrefix)) continue;
-                columns += template.symbolLeft + column + template.symbolRight  + ','
+                columns += template.symbolLeft + column + template.symbolRight + ','
                 let info = columnInfos[column];
                 if (row[column] == null)
                     values += 'null,';
@@ -111,7 +111,7 @@ export default function (template) {
                 if (column.startsWith(global_constant.hiddenFieldPrefix)) continue;
                 let info = columnInfos[column];
                 if (row[column] == null)
-                    values += `${template.symbolLeft}${column}${template.symbolRight}=null,`;
+                    set += `${template.symbolLeft}${column}${template.symbolRight}=null,`;
                 else if (info.jsType == 'number')
                     set += `${column}=${row[column]},`;
                 else set += `${column}='${row[column]}',`;

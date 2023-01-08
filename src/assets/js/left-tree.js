@@ -35,6 +35,18 @@ export default {
             this.contextmenu.rect.height = rect.height + 'px';
             this.$refs.contextmenu.handleOpen();
         },
+        treeShortcutKey(e) {
+          let selectId = this.$refs.tree.getCurrentKey();
+          if (e.key == 'F2') {
+            if (selectId == null) return;
+            let info = this.getNodeDataPathById(selectId);
+            if (info.path.length == 4)
+              this.renameTable(info.data);
+          } else if (e.ctrlKey && e.key.toLowerCase() == 'c') {
+            if (selectId == null) return;
+            navigator.clipboard.writeText(this.getNodeDataPathById(selectId).data.label);
+          }
+        },
         async nodeClick(data, node, e) {
             if (data.items && data.items.length > 0) return;
             let loading = null;

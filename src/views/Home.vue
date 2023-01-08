@@ -164,7 +164,7 @@
             <el-dropdown-item @click="designTable(contextmenu.data)">{{ global.locale.design_table }}</el-dropdown-item>
             <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
             <el-dropdown-item divided @click="copyCreateSQL(contextmenu.data)">{{ global.locale.copy }}-{{
-                global.locale.copy_insert_sql
+                global.locale.copy_create_sql
             }}
             </el-dropdown-item>
             <el-dropdown-item @click="duplicateCreateSQL(contextmenu.data)">{{ global.locale.duplicate }}
@@ -642,18 +642,6 @@ export default {
     renameKeyDown(e, node) {
       if (e.key == 'Enter') {
         this.renameClose(node);
-      }
-    },
-    treeShortcutKey(e) {
-      let selectId = this.$refs.tree.getCurrentKey();
-      if (e.key == 'F2') {
-        if (selectId == null) return;
-        let info = this.getNodeDataPathById(selectId);
-        if (info.path.length == 4)
-          this.renameTable(info.data);
-      } else if (e.ctrlKey && e.key.toLowerCase() == 'c') {
-        if (selectId == null) return;
-        navigator.clipboard.writeText(this.getNodeDataPathById(selectId).data.label);
       }
     },
     async copyCreateSQL(tableNode) {
