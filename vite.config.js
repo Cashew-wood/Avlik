@@ -8,7 +8,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 let execute=true
 export default defineConfig({
   server: {
-    port: 8081
+    port: 8080
   },
   build:{
     sourcemap:true
@@ -21,10 +21,8 @@ export default defineConfig({
   }),{
     closeBundle:(e)=>{
         let dist=import.meta.url.substring(8,import.meta.url.lastIndexOf("/")).replaceAll('/','\\')+'\\dist';
-        console.log(['res='+dist,'icon={index}','name=Avlik','embedded','single','output='+dist+'\\build','public=bin\\libs,bin\\plugin','app.company=Sepo',
-        'app.product=Database Connection','app.copyright=Sepo','app.trademark=Sepo','app.version=1.1.1.0'].join(" "))
        execFile('bin\\SepoBuild.exe', ['res='+dist,'icon={index}','name=Avlik','embedded','single','output='+dist+'\\build','public=bin\\libs,bin\\plugin','app.company=Sepo',
-      'app.product=Database Connection','app.copyright=Sepo','app.trademark=Sepo','app.version=1.1.1.0'], (error, stdout, stderr) => {
+      'app.product=Database Connection','app.copyright=Sepo','app.trademark=Sepo','app.version=1.1.2.0'], (error, stdout, stderr) => {
           console.log(error,stdout,stderr)
         });
     

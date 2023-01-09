@@ -23,7 +23,7 @@ export default function (template) {
                                 set += `${template.symbolLeft}${column}${template.symbolRight}=null,`;
                             else if (info.jsType == 'number')
                                 set += `${template.symbolLeft}${column}${template.symbolRight}=${row[column]},`;
-                            else set += `${template.symbolLeft}${column}${template.symbolRight}='${row[column]}',`;
+                            else set += `${template.symbolLeft}${column}${template.symbolRight}='${row[column].replaceAll('\'','\\\'')}',`;
                             change = true;
                         }
                     }
@@ -36,7 +36,7 @@ export default function (template) {
                                 primaryColumnData += 'null and ';
                             else if (info.jsType == 'number')
                                 primaryColumnData += `${row[column]} and `
-                            else primaryColumnData += `'${row[column]}' and `
+                            else primaryColumnData += `'${row[column].replaceAll('\'','\\\'')}' and `
                             change = true;
                         }
                         primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
@@ -53,7 +53,7 @@ export default function (template) {
                             values += 'null,';
                         else if (info.jsType == 'number')
                             values += row[column] + ',';
-                        else values += "'" + row[column] + "',";
+                        else values += "'" + row[column].replaceAll('\'','\\\'') + "',";
                     }
                     columns = columns.substring(0, columns.length - 1) + ')';
                     values = values.substring(0, values.length - 1) + ')';
@@ -67,7 +67,7 @@ export default function (template) {
                             primaryColumnData += 'null and ';
                         else if (info.jsType == 'number')
                             primaryColumnData += `${row[column]} and `
-                        else primaryColumnData += `'${row[column]}' and `
+                        else primaryColumnData += `'${row[column].replaceAll('\'','\\\'')}' and `
                         change = true;
                     }
                     primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
@@ -91,11 +91,30 @@ export default function (template) {
                     values += 'null,';
                 else if (info.jsType == 'number')
                     values += row[column] + ',';
-                else values += "'" + row[column] + "',";
+                else values += "'" + row[column].replaceAll('\'','\\\'') + "',";
             }
             columns = columns.substring(0, columns.length - 1) + ')';
             values = values.substring(0, values.length - 1) + ')';
             return `insert into ${template.symbolLeft}${tab.table}${template.symbolRight}${columns} ${values};`;
+        },
+        onCopyAllRowInsert(table,data) {
+            data.splice(0, 1);
+            let sql = ''
+            for (let row of data) {
+                let values = 'values(';
+                for (let column in row) {
+                    if (row[column] == null)
+                        values += 'null,';
+                    else if (typeof (row[column]) == 'number')
+                        values += row[column] + ',';
+                    else values += "'" + row[column].replaceAll('\'','\\\'') + "',";
+                }
+                values = values.substring(0, values.length - 1) + ')';
+                sql += `insert into ${template.symbolLeft}${table}${template.symbolRight} ${values};\n`;
+            }
+            if (sql.length)
+                sql = sql.substring(0, sql.length - 1);
+            return sql;
         },
         onCopyRowUpdate(tab, row) {
             let set = '';
@@ -114,7 +133,7 @@ export default function (template) {
                     set += `${template.symbolLeft}${column}${template.symbolRight}=null,`;
                 else if (info.jsType == 'number')
                     set += `${column}=${row[column]},`;
-                else set += `${column}='${row[column]}',`;
+                else set += `${column}='${row[column].replaceAll('\'','\\\'')}',`;
             }
             let primaryColumnData = '';
             for (let column of primaryColumns) {
@@ -124,7 +143,7 @@ export default function (template) {
                     primaryColumnData += 'null and ';
                 else if (info.jsType == 'number')
                     primaryColumnData += `${row[column]} and `
-                else primaryColumnData += `'${row[column]}' and `
+                else primaryColumnData += `'${row[column].replaceAll('\'','\\\'')}' and `
             }
             primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
             return `update ${template.symbolLeft}${tab.table}${template.symbolRight} set ${set.substring(0, set.length - 1)} where ${primaryColumnData};`

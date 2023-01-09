@@ -9,7 +9,7 @@
           <el-dropdown-menu>
             <el-dropdown-item v-for="(sub, index) in item.items" :divided="sub.divided" @click="menuItem(item, sub)"
               :icon="sub.icon">{{
-                  sub.name
+                sub.name
               }}
             </el-dropdown-item>
           </el-dropdown-menu>
@@ -66,7 +66,7 @@
           <el-tab-pane v-for="(item, i) in tabs" :key="i" :label="item.name" class="tab-panel" :name="i">
             <div class="pane">
               <div class="table_panel" v-if="item.type == 0">
-                <div class="scroll">
+                <div class="scroll" >
                   <DataTable :item="item" :loadTableData="loadTableData"></DataTable>
                 </div>
               </div>
@@ -118,10 +118,11 @@
         <el-form-item v-for="(item, key) in dbTemplates[connectionDialog.dbType].data" :label="item.name" :prop="key"
           :label-width="connectionDialog.labelWidth">
           <template v-if="item.type == 'file'">
-            <el-input type="text" v-model="connection[key]" autocomplete="off"/>
+            <el-input type="text" v-model="connection[key]" autocomplete="off" />
             <el-button class="link" link type="primary" @click="openFileDialog(connection, key)">...</el-button>
           </template>
-          <el-input v-else :type="item.type || 'text'" v-model="connection[key]" autocomplete="off" :maxlength="item.len || 200" />
+          <el-input v-else :type="item.type || 'text'" v-model="connection[key]" autocomplete="off"
+            :maxlength="item.len || 200" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -137,7 +138,8 @@
       <template #dropdown>
         <div v-if="contextmenu.type == 0">
           <el-dropdown-menu v-if="contextmenu.data.level == 1">
-            <el-dropdown-item @click="switchCNStatus(contextmenu.data)">{{ contextmenu.data.data.items.length ?
+            <el-dropdown-item @click="switchCNStatus(contextmenu.data)">{{
+              contextmenu.data.data.items.length ?
                 global.locale.close_connection :
                 global.locale.open_connection
             }}
@@ -148,7 +150,8 @@
             </el-dropdown-item>
           </el-dropdown-menu>
           <el-dropdown-menu v-if="contextmenu.data.level == 2">
-            <el-dropdown-item @click="switchDBStatus(contextmenu.data)">{{ contextmenu.data.data.items.length ?
+            <el-dropdown-item @click="switchDBStatus(contextmenu.data)">{{
+              contextmenu.data.data.items.length ?
                 global.locale.close_database :
                 global.locale.open_database
             }}
@@ -164,7 +167,11 @@
             <el-dropdown-item @click="designTable(contextmenu.data)">{{ global.locale.design_table }}</el-dropdown-item>
             <el-dropdown-item @click="addTable(contextmenu.data)">{{ global.locale.new_table }}</el-dropdown-item>
             <el-dropdown-item divided @click="copyCreateSQL(contextmenu.data)">{{ global.locale.copy }}-{{
-                global.locale.copy_create_sql
+              global.locale.copy_create_sql
+            }}
+            </el-dropdown-item>
+            <el-dropdown-item @click="copyDataInertSQL(contextmenu.data)">{{ global.locale.copy_data }}-{{
+              global.locale.copy_insert_sql
             }}
             </el-dropdown-item>
             <el-dropdown-item @click="duplicateCreateSQL(contextmenu.data)">{{ global.locale.duplicate }}
@@ -589,70 +596,6 @@ export default {
         this.tabIndex = this.tabIndex - 1;
       }
     },
-    addTable(node) {
-      let path = this.getNodeDataPathById(node.data.id).path;
-      let dbc = this.dbc[path[0]];
-      let tableTemplate = databaseTemplate[dbc.dbType];
-      this.tabs.push({
-        id: Date.now(),
-        type: 2,
-        name: this.global.locale.unnamed,
-        subtabs: tableTemplate.table.metatable,
-        table: this.global.locale.unnamed,
-        dbc,
-        db: dbc.items[path[1]]
-      })
-      console.log(this.tabs[this.tabs.length - 1])
-      this.tabIndex = this.tabs.length - 1;
-    },
-    designTable(node) {
-      let path = this.getNodeDataPathById(node.data.id).path;
-      let dbc = this.dbc[path[0]];
-      this.tabs.push({
-        id: Date.now(),
-        type: 2,
-        name: node.data.label,
-        subtabs: [],
-        table: node.data.label,
-        dbc,
-        db: dbc.items[path[1]],
-        design: true
-      })
-      this.tabIndex = this.tabs.length - 1;
-    },
-    addNewTable(item) {
-      item.name = item.table;
-      this.refreshTableByDB(item.dbc, item.db)
-    },
-    renameTable(tableData) {
-      tableData.$rename = true;
-      tableData.$name = tableData.label;
-      setTimeout(() => {
-        this.$refs.rename.focus();
-      }, 500);
-    },
-    async renameClose(node) {
-      node.data.$rename = false;
-      if (node.data.$name == node.data.label) return;
-      let dbNode = this.getDBNodeByNode(node);
-      await databaseConnecton.renameTable(dbNode.parent.data, dbNode.data.label, node.data.label, node.data.$name);
-      node.data.label = node.data.$name;
-      this.$refs.tree.setData(this.dbc);
-    },
-    renameKeyDown(e, node) {
-      if (e.key == 'Enter') {
-        this.renameClose(node);
-      }
-    },
-    async copyCreateSQL(tableNode) {
-      let dbNode = this.getDBNodeByNode(tableNode);
-      navigator.clipboard.writeText(await databaseConnecton.getTableSQL(dbNode.parent.data, dbNode.data.label, tableNode.data.label));
-    },
-    async duplicateCreateSQL(tableNode) {
-      let dbNode = this.getDBNodeByNode(tableNode);
-      await databaseConnecton.duplicateTable(dbNode.parent.data, dbNode.data.label, tableNode.data.label, tableNode.data.label + '_' + this.randomString(6));
-      this.refreshTable(tableNode)
-    },
     selectDB(tab) {
       tab.dbc = this.dbc[tab.dcIndex];
       tab.db = tab.dbc.items[tab.dbIndex];
@@ -796,7 +739,7 @@ body {
 
         .table_panel {
           width: 100%;
-          height: 100%;
+          height: calc(100% - var(--floor-height));;
           position: relative;
         }
 

@@ -227,6 +227,25 @@ const mysqlTemplate = {
             return match[1];
         }
         return null;
+    },
+    appendSort(sql, columns, asc) {
+        if (columns) {
+            const limit = sql.indexOf(' limit');
+            const i = sql.indexOf('order by');
+            const s = asc ? 'asc' : 'desc';
+            if (i != -1) {
+                sql = sql.substring(0, i) + ' order by ' + columns + ' ' + s + sql.substring(limit);
+            } else {
+                sql = sql.substring(0, limit) + ' order by ' + columns + '' + s + sql.substring(limit);
+            }
+        } else if (columns == '') {
+            const limit = sql.indexOf(' limit');
+            const i = sql.indexOf('order by');
+            if (i != -1) {
+                sql = sql.substring(0, i) + sql.substring(limit);
+            }
+        }
+        return sql;
     }
 }
 mysqlTemplate.table = new MysqlTable(mysqlTemplate);
@@ -289,6 +308,25 @@ const sqliteTemplate = {
             return match[1];
         }
         return null;
+    },
+    appendSort(sql, columns, asc) {
+        if (columns) {
+            const limit = sql.indexOf(' limit');
+            const i = sql.indexOf('order by');
+            const s = asc ? 'asc' : 'desc';
+            if (i != -1) {
+                sql = sql.substring(0, i) + ' order by ' + columns + ' ' + s + sql.substring(limit);
+            } else {
+                sql = sql.substring(0, limit) + ' order by ' + columns + '' + s + sql.substring(limit);
+            }
+        } else if (columns == '') {
+            const limit = sql.indexOf(' limit');
+            const i = sql.indexOf('order by');
+            if (i != -1) {
+                sql = sql.substring(0, i) + sql.substring(limit);
+            }
+        }
+        return sql;
     }
 }
 sqliteTemplate.table = new SqliteTable(sqliteTemplate);

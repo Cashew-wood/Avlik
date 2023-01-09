@@ -4,10 +4,10 @@
             <el-table :data="item.data" class="table" @cell-click="cellClick" border highlight-current-row
                 :row-class-name="tableRowClassName" @current-change="handleCurrentChange(item, $event)"
                 @keydown="tableDownKey" tabindex="0" @cell-contextmenu="cellContenxtMenu"
-                @header-contextmenu="headerContextMenu">
+                @header-contextmenu="headerContextMenu" @sort-change="sortChange">
                 <el-table-column align="center" type="index" fixed width="50" />
                 <el-table-column v-for="(column, k) in item.columns" :kye="k" :prop="column.name" :label="column.name"
-                    :width="130" align="center">
+                    :width="130" align="center" sortable="custom">
                     <template #default="scope">
                         <template v-if="selectCell && selectCell.row == scope.row && selectCell.column == column.name">
                             <TableEdit
@@ -19,18 +19,18 @@
                             <span class="defaultText select" tabindex="0"
                                 @keydown="textDownKey($event, scope.row, column.name)"
                                 :class="{ 'null': scope.row[column.name] == null }" v-else>{{
-                                        dataFormat(dbTemplate.dataType[column.type] &&
-                                            dbTemplate.dataType[column.type].jsType,
-                                            scope.row[column.name])
+                                    dataFormat(dbTemplate.dataType[column.type] &&
+                                        dbTemplate.dataType[column.type].jsType,
+                                    scope.row[column.name])
                                 }}</span>
                         </template>
                         <template v-else>
                             <span class="defaultText" tabindex="0"
                                 @keydown="textDownKey($event, scope.row, column.name)"
                                 :class="{ 'null': scope.row[column.name] == null }">{{
-                                        dataFormat(dbTemplate.dataType[column.type] &&
-                                            dbTemplate.dataType[column.type].jsType,
-                                            scope.row[column.name])
+                                    dataFormat(dbTemplate.dataType[column.type] &&
+                                        dbTemplate.dataType[column.type].jsType,
+                                    scope.row[column.name])
                                 }}</span>
                         </template>
                     </template>
@@ -101,6 +101,12 @@ export default {
                 items: [{
                     name: 'column',
                     onClick: this.copyHeaderColumn
+                }]
+            }, {
+                name: 'paste',
+                items: [{
+                    name: 'column',
+                    onClick: this.pasteHeaderColumn
                 }]
             }]
         };
@@ -228,12 +234,13 @@ export default {
                 this.error(e);
             })
         },
-        async refreshResult(tab) {
+        async refreshResult(tab, sort, asc) {
             tab.wait = true;
             let cn = await databaseConnecton.getConnection(tab.dbc.dbType, tab.dbc.info, tab.db.label);
             tab.$cn = cn;
+            tab.sql = this.dbTemplate.appendSort(tab.sql, sort, asc);
             tab.explain = tab.sql;
-            tab.runId = cn.selectAsync(tab.sql, null, (rs) => {
+            tab.runId = await cn.selectAsync(tab.sql, null, (rs) => {
                 cn.close();
                 tab.$change = false;
                 tab.wait = false;
@@ -260,6 +267,12 @@ export default {
                 row[this.constant.hiddenFieldState] = null;
             }
             tab.$change = false;
+        },
+        async stopSQL(tab) {
+            try {
+                await tab.$cn.cancel(tab.runId);
+            } catch { }
+            tab.wait = false;
         },
         setDuplicateData(data) {
             for (let row of data) {
@@ -320,6 +333,22 @@ export default {
                 s = s.substring(0, s.length - 1);
             }
             navigator.clipboard.writeText(s);
+        },
+        sortChange({ column, prop, order }) {
+            console.log(column, prop, order)
+            if (order) {
+                this.refreshResult(this.item, prop, order[0] == 'a');
+            } else {
+                this.refreshResult(this.item, '');
+            }
+        },
+        async pasteHeaderColumn(column) {
+            const strs = (await navigator.clipboard.readText()).split('\n');
+            let k = 0;
+            for (let row of this.item.data) {
+                row[column.label] = strs[k++];
+                this.tableEditBoxHide(this.item, row, column.label);
+            }
         }
     },
     components: { TableEdit, Fixed, ContextMenu }

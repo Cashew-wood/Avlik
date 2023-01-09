@@ -153,6 +153,7 @@ export default {
             let columns = []
             if (dbType == 'mysql') {
                 let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA = '${dbName}' and LOWER(TABLE_NAME) = LOWER('${tableName}')`);
+                console.log(tableCoumns)
                 for (let row of tableCoumns) {
                     let k = row.COLUMN_TYPE.indexOf('(');
                     let value = k > -1 ? row.COLUMN_TYPE.substring(k + 1, row.COLUMN_TYPE.lastIndexOf(')')) : null;
@@ -225,13 +226,22 @@ export default {
         })
     },
     getTableDataPage(dbc, dbName, table, page, size, sqlCallback) {
-        let sql = `select * from \`${table}\` limit ${(page - 1) * size}, ${size}`;
+        const tableAlias = databaseTemplate[dbc.dbType].symbolLeft + table + databaseTemplate[dbc.dbType].symbolRight;
+        let sql = `select * from ${tableAlias} limit ${(page - 1) * size}, ${size}`;
         sqlCallback && sqlCallback(sql);
         return this.use(dbc, dbName, async (dc) => {
             return {
                 data: await dc.select(sql),
-                total: (await dc.select(`select count(*) count from \`${table}\``))[0].count
+                total: (await dc.select(`select count(*) count from ${tableAlias}`))[0].count
             }
+        })
+    },
+    getTableData(dbc, dbName, table, sqlCallback) {
+        const tableAlias = databaseTemplate[dbc.dbType].symbolLeft + table + databaseTemplate[dbc.dbType].symbolRight;
+        let sql = `select * from ${tableAlias}`;
+        sqlCallback && sqlCallback(sql);
+        return this.use(dbc, dbName, async (dc) => {
+            return await dc.selectAndColumns(sql)
         })
     }
 

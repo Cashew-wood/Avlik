@@ -36,16 +36,16 @@ export default {
             this.$refs.contextmenu.handleOpen();
         },
         treeShortcutKey(e) {
-          let selectId = this.$refs.tree.getCurrentKey();
-          if (e.key == 'F2') {
-            if (selectId == null) return;
-            let info = this.getNodeDataPathById(selectId);
-            if (info.path.length == 4)
-              this.renameTable(info.data);
-          } else if (e.ctrlKey && e.key.toLowerCase() == 'c') {
-            if (selectId == null) return;
-            navigator.clipboard.writeText(this.getNodeDataPathById(selectId).data.label);
-          }
+            let selectId = this.$refs.tree.getCurrentKey();
+            if (e.key == 'F2') {
+                if (selectId == null) return;
+                let info = this.getNodeDataPathById(selectId);
+                if (info.path.length == 4)
+                    this.renameTable(info.data);
+            } else if (e.ctrlKey && e.key.toLowerCase() == 'c') {
+                if (selectId == null) return;
+                navigator.clipboard.writeText(this.getNodeDataPathById(selectId).data.label);
+            }
         },
         async nodeClick(data, node, e) {
             if (data.items && data.items.length > 0) return;
@@ -114,6 +114,74 @@ export default {
             }
             tableData.items.sort((a, b) => a.label.localeCompare(b.label));
             this.$refs.tree.setData(this.dbc);
+        },
+        addTable(node) {
+            let path = this.getNodeDataPathById(node.data.id).path;
+            let dbc = this.dbc[path[0]];
+            let tableTemplate = databaseTemplate[dbc.dbType];
+            this.tabs.push({
+                id: Date.now(),
+                type: 2,
+                name: this.global.locale.unnamed,
+                subtabs: tableTemplate.table.metatable,
+                table: this.global.locale.unnamed,
+                dbc,
+                db: dbc.items[path[1]]
+            })
+            console.log(this.tabs[this.tabs.length - 1])
+            this.tabIndex = this.tabs.length - 1;
+        },
+        designTable(node) {
+            let path = this.getNodeDataPathById(node.data.id).path;
+            let dbc = this.dbc[path[0]];
+            this.tabs.push({
+                id: Date.now(),
+                type: 2,
+                name: node.data.label,
+                subtabs: [],
+                table: node.data.label,
+                dbc,
+                db: dbc.items[path[1]],
+                design: true
+            })
+            this.tabIndex = this.tabs.length - 1;
+        },
+        addNewTable(item) {
+            item.name = item.table;
+            this.refreshTableByDB(item.dbc, item.db)
+        },
+        renameTable(tableData) {
+            tableData.$rename = true;
+            tableData.$name = tableData.label;
+            setTimeout(() => {
+                this.$refs.rename.focus();
+            }, 500);
+        },
+        async renameClose(node) {
+            node.data.$rename = false;
+            if (node.data.$name == node.data.label) return;
+            let dbNode = this.getDBNodeByNode(node);
+            await databaseConnecton.renameTable(dbNode.parent.data, dbNode.data.label, node.data.label, node.data.$name);
+            node.data.label = node.data.$name;
+            this.$refs.tree.setData(this.dbc);
+        },
+        renameKeyDown(e, node) {
+            if (e.key == 'Enter') {
+                this.renameClose(node);
+            }
+        },
+        async copyCreateSQL(tableNode) {
+            let dbNode = this.getDBNodeByNode(tableNode);
+            navigator.clipboard.writeText(await databaseConnecton.getTableSQL(dbNode.parent.data, dbNode.data.label, tableNode.data.label));
+        },
+        async copyDataInertSQL(tableNode) {
+            let dbNode = this.getDBNodeByNode(tableNode);
+            navigator.clipboard.writeText(databaseTemplate[dbNode.parent.data.dbType].onCopyAllRowInsert(tableNode.data.label,await databaseConnecton.getTableData(dbNode.parent.data, dbNode.data.label, tableNode.data.label)));
+        },
+        async duplicateCreateSQL(tableNode) {
+            let dbNode = this.getDBNodeByNode(tableNode);
+            await databaseConnecton.duplicateTable(dbNode.parent.data, dbNode.data.label, tableNode.data.label, tableNode.data.label + '_' + this.randomString(6));
+            this.refreshTable(tableNode)
         }
     }
 }

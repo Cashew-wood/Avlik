@@ -100,5 +100,7 @@ export default {
     unique:'唯一',
     deferred:'推迟',
     for_each:'每个',
-    update_of_fields:'更新字段'
+    update_of_fields:'更新字段',
+    copy_data:'复制数据',
+    paste:'粘贴'
 }

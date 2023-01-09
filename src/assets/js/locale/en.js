@@ -100,5 +100,7 @@ export default {
     unique:'Unique',
     deferred:'Deferred',
     for_each:'For Each',
-    update_of_fields:'Update of Fields'
+    update_of_fields:'Update of Fields',
+    copy_data:'Copy Data',
+    paste:'Paste'
 }
