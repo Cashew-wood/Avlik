@@ -16,16 +16,18 @@ export default {
                 return;
             }
             this.contextmenu.visible = true;
-            let parent;
-            for (let dom of e.path) {
-                for (let cl of dom.classList) {
+            let parent = e.target;
+            do {
+                let exists = false;
+                for (let cl of parent.classList) {
                     if (cl == 'el-tree-node') {
-                        parent = dom;
+                        exists = true;
                         break;
                     }
                 }
-                if (parent) break;
-            }
+                if (exists) break;
+                parent = parent.parentElement;
+            } while (true)
             this.contextmenu.type = 0;
             let rect = parent.getBoundingClientRect();
             this.contextmenu.data = node;
@@ -176,7 +178,7 @@ export default {
         },
         async copyDataInertSQL(tableNode) {
             let dbNode = this.getDBNodeByNode(tableNode);
-            navigator.clipboard.writeText(databaseTemplate[dbNode.parent.data.dbType].onCopyAllRowInsert(tableNode.data.label,await databaseConnecton.getTableData(dbNode.parent.data, dbNode.data.label, tableNode.data.label)));
+            navigator.clipboard.writeText(databaseTemplate[dbNode.parent.data.dbType].onCopyAllRowInsert(tableNode.data.label, await databaseConnecton.getTableData(dbNode.parent.data, dbNode.data.label, tableNode.data.label)));
         },
         async duplicateCreateSQL(tableNode) {
             let dbNode = this.getDBNodeByNode(tableNode);
