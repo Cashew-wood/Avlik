@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+Newtonsoft.Json.dll
+SepoInterface.dll
+Microsoft.*.dll

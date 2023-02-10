@@ -60,7 +60,7 @@ export default {
         })
     },
     dropDatabase(dbc, dbName) {
-        return databaseConnecton.use(dbc, async (db) => {
+        return this.use(dbc, async (db) => {
             await db.execute('drop database `' + dbName + '`');
         });
     },

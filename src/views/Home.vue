@@ -270,20 +270,23 @@ export default {
     }
   },
   components: { TitleBar, Codemirror, DataTable, TableEdit, TableMeta, Fixed, ContextMenu },
-  mounted() {
+  created(){
     if (native && native.isInit) {
       this.init();
     } else {
       window.addEventListener('native', this.init)
     }
+  },
+  mounted() {
+   
     this.dbTemplates = databaseTemplate;
 
     this.loadStorage();
   },
   methods: {
     async init() {
-      console.log(native)
       native.window.show();
+
       let actualSize = await this.global.device.screenActualSize;
       native.window.width = parseInt(actualSize.width * 0.75);
       native.window.height = parseInt(actualSize.height * 0.85);
@@ -382,7 +385,6 @@ export default {
       }
     },
     async deleteDB(node) {
-      console.log(this.global.locale)
       await this.$confirm(this.format(this.global.locale.delete_tip, node.data.label), this.global.locale.prompt, {
         confirmButtonText: this.global.locale.ok,
         cancelButtonText: this.global.locale.cancel,
@@ -393,6 +395,7 @@ export default {
         node.parent.data.items.splice(node.parent.data.items.findIndex(e => e.id == node.data.id), 1);
         this.$refs.tree.setData(this.dbc);
       } catch (e) {
+        console.error(e)
         this.error(e);
       }
     },

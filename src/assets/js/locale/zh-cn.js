@@ -52,7 +52,6 @@ export default {
     foreign_keys: '外键',
     triggers: '触发器',
     fields: '字段',
-    new_table: '新建表',
     default_value: '默认值',
     character: '字符',
     collation: '排序规则',

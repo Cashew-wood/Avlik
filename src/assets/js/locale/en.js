@@ -32,7 +32,6 @@ export default {
     delete_tip: 'Are you sure you want to delete the {}?',
     open_table: 'Open Table',
     close_table: 'Close Table',
-    new_table: 'New Table',
     duplicate: 'Duplicate',
     not_selected_db: 'Please select a database first',
     run: 'Run',
