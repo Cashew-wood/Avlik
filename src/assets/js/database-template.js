@@ -229,20 +229,24 @@ const mysqlTemplate = {
         return null;
     },
     appendSort(sql, columns, asc) {
+        let right = sql.indexOf(' limit');
+        right = right == -1 ? right = sql.indexOf(";") : right;
+        right = right == -1 ? sql.length : right;
         if (columns) {
-            const limit = sql.indexOf(' limit');
             const i = sql.indexOf('order by');
             const s = asc ? 'asc' : 'desc';
             if (i != -1) {
-                sql = sql.substring(0, i) + ' order by ' + columns + ' ' + s + sql.substring(limit);
+                sql = sql.substring(0, i) + ' order by ' + columns + ' ' + s + sql.substring(right);
+            } else if (right != -1) {
+                sql = sql.substring(0, right) + ' order by ' + columns + ' ' + s + sql.substring(right);
             } else {
-                sql = sql.substring(0, limit) + ' order by ' + columns + '' + s + sql.substring(limit);
+                sql = sql.substring(0, right) + ' order by ' + columns + ' ' + s + sql.substring(right);
             }
         } else if (columns == '') {
-            const limit = sql.indexOf(' limit');
+          
             const i = sql.indexOf('order by');
             if (i != -1) {
-                sql = sql.substring(0, i) + sql.substring(limit);
+                sql = sql.substring(0, i) + sql.substring(right);
             }
         }
         return sql;
