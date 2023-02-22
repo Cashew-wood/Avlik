@@ -62,11 +62,11 @@
         </div>
       </div>
       <div class="main_panel">
-        <el-tabs closable type="card" class="tabs" @tab-remove="tabClose" v-model="tabIndex">
+        <el-tabs closable type="card" class="tabs" @tab-remove="closeTab" v-model="tabIndex">
           <el-tab-pane v-for="(item, i) in tabs" :key="i" :label="item.name" class="tab-panel" :name="i">
             <div class="pane">
               <div class="table_panel" v-if="item.type == 0">
-                <div class="scroll" >
+                <div class="scroll">
                   <DataTable :item="item" :loadTableData="loadTableData"></DataTable>
                 </div>
               </div>
@@ -87,6 +87,9 @@
                     <span class="iconfont error icon-tingzhi"></span>
                     <span>{{ global.locale.stop }}</span>
                   </div>
+                  <div class="item" @click="saveSQL(item)">
+                    <el-button type="primary" link>{{ global.locale.save }}</el-button>
+                  </div>
                 </div>
                 <Codemirror :ref="'editor' + i" v-model:value="item.content" :options="item.editorOptions" border
                   height="100%" />
@@ -97,7 +100,7 @@
                   </div>
                 </div>
               </div>
-              <TableMeta v-if="item.type == 2" :item="item" @add="addNewTable(item)">
+              <TableMeta v-if="item.type == 2" :item="item" @add="addNewTable(item)" @close="closeTab(i)">
               </TableMeta>
               <div class="floor">
                 <div class="floor-left">
@@ -112,8 +115,8 @@
         </el-tabs>
       </div>
     </div>
-    <el-dialog v-model="connectionDialog.visible" :title="global.locale.new_connection" width="50%"
-      ref="connectionDialog" class="connection-dialog">
+    <el-dialog v-model="connectionDialog.visible" :title="global.locale.new_connection" width="50%" ref="connectionDialog"
+      class="connection-dialog">
       <el-form ref="NCF" :model="connection" :rules="dbTemplates[connectionDialog.dbType].dataValidate" border>
         <el-form-item v-for="(item, key) in dbTemplates[connectionDialog.dbType].data" :label="item.name" :prop="key"
           :label-width="connectionDialog.labelWidth">
@@ -140,8 +143,8 @@
           <el-dropdown-menu v-if="contextmenu.data.level == 1">
             <el-dropdown-item @click="switchCNStatus(contextmenu.data)">{{
               contextmenu.data.data.items.length ?
-                global.locale.close_connection :
-                global.locale.open_connection
+              global.locale.close_connection :
+              global.locale.open_connection
             }}
             </el-dropdown-item>
             <el-dropdown-item @click="editCN(contextmenu.data)">{{ global.locale.edit_connection }}</el-dropdown-item>
@@ -152,8 +155,8 @@
           <el-dropdown-menu v-if="contextmenu.data.level == 2">
             <el-dropdown-item @click="switchDBStatus(contextmenu.data)">{{
               contextmenu.data.data.items.length ?
-                global.locale.close_database :
-                global.locale.open_database
+              global.locale.close_database :
+              global.locale.open_database
             }}
             </el-dropdown-item>
             <el-dropdown-item v-if="dbTemplates[contextmenu.data.parent.data.dbType].dropDB"
@@ -270,7 +273,7 @@ export default {
     }
   },
   components: { TitleBar, Codemirror, DataTable, TableEdit, TableMeta, Fixed, ContextMenu },
-  created(){
+  created() {
     if (native && native.isInit) {
       this.init();
     } else {
@@ -278,7 +281,7 @@ export default {
     }
   },
   mounted() {
-   
+
     this.dbTemplates = databaseTemplate;
 
     this.loadStorage();
@@ -523,7 +526,6 @@ export default {
             tab.data = this.format(this.global.locale.affected_rows, count);
           }, (e) => {
             this.sqlRunEnd(tab, e);
-            this.setSqlErrorResult(e);
           });
         } else {
           tab.dataType = 1;
@@ -553,7 +555,7 @@ export default {
           }
         }
       } catch (e) {
-        this.setSqlErrorResult(tab, e);
+        this.sqlRunEnd(tab, e);
       }
     },
     setDuplicateData(data) {
@@ -565,6 +567,7 @@ export default {
       return data;
     },
     sqlRunEnd(tab, e) {
+      console.log(e);
       tab.$cn.close();
       tab.run = false;
       tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
@@ -593,7 +596,12 @@ export default {
       tab.wait = false;
       tab.run = false;
     },
-    tabClose(e) {
+    async saveSQL(tab) {
+      const saveFile = await window.native.io.saveFileDialog(this.global.locale.save, null, "SQL|*.sql", new Date().toLocaleString().replaceAll("/", "")
+        .replaceAll(":", "").replace(" ", "") + ".sql");
+      saveFile && window.native.io.fileWrite(saveFile, tab.content, "utf-8");
+    },
+    closeTab(e) {
       this.tabs.splice(e, 1);
       if (e <= this.tabIndex) {
         this.tabIndex = this.tabIndex - 1;
@@ -742,7 +750,8 @@ body {
 
         .table_panel {
           width: 100%;
-          height: calc(100% - var(--floor-height));;
+          height: calc(100% - var(--floor-height));
+          ;
           position: relative;
         }
 
@@ -774,6 +783,11 @@ body {
 
           .item {
             margin-left: 18px;
+            padding: 4px;
+
+            .iconfont {
+              margin-right: 4px;
+            }
 
             .primary {
               color: var(--el-color-primary);

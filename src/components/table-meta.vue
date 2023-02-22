@@ -193,8 +193,10 @@ export default {
     mounted() {
         dbTemplate = databaseTemplate[this.item.dbc.dbType];
         this.item.subtabs = new dbTemplate.table.Metatable()
-
-        dbTemplate.table.onCreate(this.item);
+        dbTemplate.table.onCreate(this.item).catch(e=>{
+            this.error(e);
+            this.$emit('close');
+        });
         for (let subtab of this.item.subtabs) {
             if (!subtab.data.length)
                 this.addNewTableRow(subtab.columns, subtab.data);
@@ -320,6 +322,7 @@ export default {
                     }
             } catch (e) {
                 console.error(e);
+                this.error(e);
             }
         },
         save() {

@@ -160,6 +160,7 @@ export default function (template) {
             }
         },
         $columnSQL(row) {
+            if(!row.data_type)return "";
             let sql = '`' + row.name + '` ' + row.data_type;
             sql += ' ';
             if (row.not_null) {

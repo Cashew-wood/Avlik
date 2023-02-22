@@ -50,7 +50,7 @@ export default {
         async chooseFile() {
             let selectId = this.$refs.tree.getCurrentKey();
             let info = this.getNodeDataPathById(selectId);
-            if (!selectId || info.path.length < 2) {
+            if (!selectId || info.path.length < 1) {
                 this.$message({
                     duration: 3000,
                     message: this.global.locale.not_selected_db,

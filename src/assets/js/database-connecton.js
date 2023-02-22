@@ -118,7 +118,11 @@ export default {
         let dbType = databaseTemplate[dbc.dbType].alias;
         return this.use(dbc, dbName, async (dc) => {
             if (dbType == 'mysql') {
-                return (await dc.select('show create table ' + databaseTemplate[dbc.dbType].symbolLeft + tableName + databaseTemplate[dbc.dbType].symbolRight))[0]['Create Table'];
+                const resp = (await dc.select('show create table ' + databaseTemplate[dbc.dbType].symbolLeft + tableName + databaseTemplate[dbc.dbType].symbolRight))[0]
+                if (resp['Create View']) {
+                    throw "not support View";
+                }
+                return resp['Create Table'];
             } else if (dbType == 'sqlite') {
                 return (await dc.select(`SELECT * FROM sqlite_master WHERE type='table' and name = "${tableName}"`))[0].sql;
             }
@@ -152,7 +156,7 @@ export default {
         return this.use(dbc, async (dc) => {
             let columns = []
             if (dbType == 'mysql') {
-                let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA = '${dbName}' and LOWER(TABLE_NAME) = LOWER('${tableName}')`);
+                let tableCoumns = await dc.select(`select * from information_schema.COLUMNS where TABLE_SCHEMA = '${dbName}' and LOWER(TABLE_NAME) = LOWER('${tableName}') order by ORDINAL_POSITION asc`);
                 console.log(tableCoumns)
                 for (let row of tableCoumns) {
                     let k = row.COLUMN_TYPE.indexOf('(');

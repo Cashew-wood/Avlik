@@ -290,7 +290,7 @@ export default {
             if (this.item.columns.findIndex(e => e.type ? true : false) == -1) return;
             this.item.selected = this.item.data.findIndex(e => e == row);
             this.selectCell = { row, column: column.label, hasEdit: false }
-            this.$refs.contextmenu.show(event.path[1], this.menuCell);
+            this.$refs.contextmenu.show(event.target, this.menuCell);
         },
         setNull() {
             this.selectCell.row[this.selectCell.column] = null;
@@ -305,8 +305,7 @@ export default {
             navigator.clipboard.writeText(this.dbTemplate.onCopyRowUpdate(this.item, this.selectCell.row));
         },
         headerContextMenu(column, e) {
-            console.log(column)
-            this.$refs.contextmenu.show(e.path[1], this.menuHeader, column);
+            this.$refs.contextmenu.show(e.target, this.menuHeader, column);
         },
         copyHeader(column) {
             navigator.clipboard.writeText(column.label);

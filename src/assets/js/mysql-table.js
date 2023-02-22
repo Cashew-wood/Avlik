@@ -221,6 +221,7 @@ export default function (template) {
             }
         },
         $columnSQL(row) {
+            if (!row.data_type) return "";
             let sql = '`' + row.name + '` ' + row.data_type;
             if (template.dataType[row.data_type].jsType == 'text' && row.length) {
                 sql += '(' + row.length + ')';
@@ -408,14 +409,18 @@ export default function (template) {
             len = sql.length;
             let last = null;
             let priKeys = []
+            let columnsIndex = 0;
             for (let row of tab.subtabs[0].data) {
-                let old = tab.$tableInfo.datas[0][tab.$tableInfo.datas[0].findIndex(e => e.name == row.name)];
+                const oldIndex = tab.$tableInfo.datas[0].findIndex(e => e.name == row.name);
+                let old = tab.$tableInfo.datas[0][oldIndex];
                 if (old) {
-                    let diff = false
-                    for (let field in old) {
-                        if (old[field] != row[field]) {
-                            diff = true;
-                            break
+                    let diff = oldIndex != columnsIndex;
+                    if (!diff) {
+                        for (let field in old) {
+                            if (old[field] != row[field]) {
+                                diff = true;
+                                break
+                            }
                         }
                     }
                     if (diff) {
@@ -431,6 +436,7 @@ export default function (template) {
                     }
                 }
                 last = row;
+                columnsIndex++;
             }
             for (let row of tab.$tableInfo.datas[0]) {
                 let isDrop = tab.subtabs[0].data.findIndex(e => e.name == row.name) == -1;

@@ -208,6 +208,9 @@ const mysqlTemplate = {
         year: {
             jsType: 'number',
             default_value: 'text'
+        },
+        json: {
+            jsType: 'text',
         }
     },
     dbItems: ['tables'],
