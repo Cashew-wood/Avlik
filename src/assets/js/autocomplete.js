@@ -144,88 +144,88 @@ export default async function (editor) {
     let j = lastIndexOf(firstContent);
     let word = firstContent.substring(j == -1 ? 0 : j + 1);
     let list = []
-    if (word.length) {
-        for (let s in keyword) {
-            if (s.startsWith(word)) {
-                list.push(s);
-            }
+    if (!word.length) return null;
+    for (let s in keyword) {
+        if (s.startsWith(word)) {
+            list.push(s);
         }
-        let firstKeywords = indexOfToken(firstContent, keywordTokens);
-        firstKeywords.sort((a, b) => b.index - a.index);
-        let tableList = [];
-        if (firstKeywords[0]?.value == 'select') {
-            let findToken = indexOfToken(lastContent, keywordTokens);
-            findToken.sort((a, b) => a.index - b.index);
-            if (findToken[0]?.value == 'from') {
-                let fromAfter = lastContent.substring(findToken[0].index + 4);
-                const nextToken = indexOfToken(fromAfter, keywordTokens);
-                nextToken.sort((a, b) => b.index - a.index);
-                fromAfter = nextToken[0] ? fromAfter.substring(0, nextToken[0].index) : fromAfter;
-                tableList = getTableList(fromAfter);
-            }
-        } else if (firstKeywords[0]?.value == 'where') {
-            let findToken = indexOfToken(firstContent.substring(0, firstKeywords[0].index), keywordTokens);
-            findToken.sort((a, b) => b.index - a.index);
-            if (findToken[0]?.value == 'from') {
-                let fromAfter = firstContent.substring(findToken[0].index, firstKeywords[0].index);
-                tableList = getTableList(fromAfter);
-            }
-        } else if (firstKeywords[0]?.value == 'from') {
-            let fromAfter = firstContent.substring(firstKeywords[0].index + 4) + lastContent;
+    }
+    if (!editor.tab.db) return { list, from: { ch: token.start, line: cursor.line }, to: { ch: token.end, line: cursor.line } };
+    let firstKeywords = indexOfToken(firstContent, keywordTokens);
+    firstKeywords.sort((a, b) => b.index - a.index);
+    let tableList = [];
+    if (firstKeywords[0]?.value == 'select') {
+        let findToken = indexOfToken(lastContent, keywordTokens);
+        findToken.sort((a, b) => a.index - b.index);
+        if (findToken[0]?.value == 'from') {
+            let fromAfter = lastContent.substring(findToken[0].index + 4);
             const nextToken = indexOfToken(fromAfter, keywordTokens);
+            nextToken.sort((a, b) => b.index - a.index);
             fromAfter = nextToken[0] ? fromAfter.substring(0, nextToken[0].index) : fromAfter;
             tableList = getTableList(fromAfter);
         }
-        const p = word.lastIndexOf(".");
-        let before = word.substring(0, p == -1 ? word.length : p);
-        let after = p == -1 ? null : word.substring(p + 1);
-        let limitDB = editor.tab.db.label;
-        if (tableList.length == 1 && !tableList[0].alias && firstKeywords[0]?.value != 'from') {
-            after = before;
-            before = tableList[0].table;
-        } else {
-            for (let table of tableList) {
-                if (table.alias == before) {
-                    before = table.table;
-                    const sp = before.split('.');
-                    if (sp.length == 2) {
-                        limitDB = sp[0];
-                        before = sp[1];
+    } else if (firstKeywords[0]?.value == 'where') {
+        let findToken = indexOfToken(firstContent.substring(0, firstKeywords[0].index), keywordTokens);
+        findToken.sort((a, b) => b.index - a.index);
+        if (findToken[0]?.value == 'from') {
+            let fromAfter = firstContent.substring(findToken[0].index, firstKeywords[0].index);
+            tableList = getTableList(fromAfter);
+        }
+    } else if (firstKeywords[0]?.value == 'from') {
+        let fromAfter = firstContent.substring(firstKeywords[0].index + 4) + lastContent;
+        const nextToken = indexOfToken(fromAfter, keywordTokens);
+        fromAfter = nextToken[0] ? fromAfter.substring(0, nextToken[0].index) : fromAfter;
+        tableList = getTableList(fromAfter);
+    }
+    const p = word.lastIndexOf(".");
+    let before = word.substring(0, p == -1 ? word.length : p);
+    let after = p == -1 ? null : word.substring(p + 1);
+    let limitDB = editor.tab.db.label;
+    if (tableList.length == 1 && !tableList[0].alias && firstKeywords[0]?.value != 'from') {
+        after = before;
+        before = tableList[0].table;
+    } else {
+        for (let table of tableList) {
+            if (table.alias == before) {
+                before = table.table;
+                const sp = before.split('.');
+                if (sp.length == 2) {
+                    limitDB = sp[0];
+                    before = sp[1];
+                }
+            }
+        }
+    }
+    let mainDBTables = editor.tab.dbc.items[editor.tab.dbIndex].items[0]?.items;
+    if (!mainDBTables.length) {
+        mainDBTables = [{ items: (await databaseConnecton.getTableList(editor.tab.dbc, editor.tab.db.label)).map(e => { return { label: e } }) }];
+        editor.tab.dbc = { ...editor.tab.dbc, items: [].concat(editor.tab.dbc.items) }
+        editor.tab.dbc.items[editor.tab.dbIndex] = { ...editor.tab.db, items: mainDBTables };
+    }
+    const match = findMatchObj(editor.tab.dbc, before, p > -1, limitDB);
+    if (after != null) {
+        for (let item of match) {
+            if (item.type == 'db') {
+                let tables = item.value.items[0]?.items;
+                if (!tables || !tables.length) {
+                    tables = [{ items: (await databaseConnecton.getTableList(editor.tab.dbc, item.value.label)).map(e => { return { label: e } }) }];
+                }
+                const child = findTableMatchObj({ ...db, items: tables }, after, false)
+                list = list.concat(child.map(e => e.value.label));
+            } else if (item.type == 'table') {
+                const key = editor.tab.dcIndex + "&" + item.db.label + "&" + item.value.label;
+                if (!tableColumns[key])
+                    tableColumns[key] = await databaseConnecton.getTableColumns(editor.tab.dbc, item.db.label, item.value.label);
+                for (let column of tableColumns[key]) {
+                    if (column.name.toLowerCase().startsWith(after)) {
+                        list.push(column.name);
                     }
                 }
             }
         }
-        let mainDBTables = editor.tab.dbc.items[editor.tab.dbIndex].items[0]?.items;
-        if (!mainDBTables.length) {
-            mainDBTables = [{ items: (await databaseConnecton.getTableList(editor.tab.dbc, editor.tab.db.label)).map(e => { return { label: e } }) }];
-            editor.tab.dbc = { ...editor.tab.dbc, items: [].concat(editor.tab.dbc.items) }
-            editor.tab.dbc.items[editor.tab.dbIndex] = { ...editor.tab.db, items: mainDBTables };
-        }
-        const match = findMatchObj(editor.tab.dbc, before, p > -1, limitDB);
-        if (after != null) {
-            for (let item of match) {
-                if (item.type == 'db') {
-                    let tables = item.value.items[0]?.items;
-                    if (!tables || !tables.length) {
-                        tables = [{ items: (await databaseConnecton.getTableList(editor.tab.dbc, item.value.label)).map(e => { return { label: e } }) }];
-                    }
-                    const child = findTableMatchObj({ ...db, items: tables }, after, false)
-                    list = list.concat(child.map(e => e.value.label));
-                } else if (item.type == 'table') {
-                    const key = editor.tab.dcIndex + "&" + item.db.label + "&" + item.value.label;
-                    if (!tableColumns[key])
-                        tableColumns[key] = await databaseConnecton.getTableColumns(editor.tab.dbc, item.db.label, item.value.label);
-                    for (let column of tableColumns[key]) {
-                        if (column.name.toLowerCase().startsWith(after)) {
-                            list.push(column.name);
-                        }
-                    }
-                }
-            }
-        } else {
-            for (let item of match) {
-                list.push(item.value.label)
-            }
+    } else {
+        for (let item of match) {
+            list.push(item.value.label)
         }
     }
 

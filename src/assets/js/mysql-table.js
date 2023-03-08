@@ -424,13 +424,13 @@ export default function (template) {
                         }
                     }
                     if (diff) {
-                        sql += `MODIFY COLUMN ${this.$columnSQL(row)} ${last ? 'AFTER ' + last.name : 'FIRST'},\n`
+                        sql += `MODIFY COLUMN ${this.$columnSQL(row)} ${last ? 'AFTER ' + template.symbolLeft + last.name + template.symbolRight : 'FIRST'},\n`
                     }
                     if (!old.key && row.key) {
                         priKeys.push(row);
                     }
                 } else {
-                    sql += `ADD COLUMN ${this.$columnSQL(row)} ${last ? 'AFTER ' + last.name : 'FIRST'},\n`
+                    sql += `ADD COLUMN ${this.$columnSQL(row)} ${last ? 'AFTER ' + template.symbolLeft + last.name + template.symbolRight : 'FIRST'},\n`
                     if (row.key) {
                         priKeys.push(row);
                     }

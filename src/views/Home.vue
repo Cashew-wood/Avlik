@@ -519,7 +519,7 @@ export default {
         tab.table = null;
         if (execute) {
           tab.dataType = 0;
-          let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db.label);
+          let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db?.label);
           tab.$cn = cn;
           tab.runId = await cn.executeAsync(sql, null, (count) => {
             this.sqlRunEnd(tab);
@@ -529,7 +529,7 @@ export default {
           });
         } else {
           tab.dataType = 1;
-          let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db.label);
+          let cn = await databaseConnecton.getConnection(dc.dbType, dc.info, db?.label);
           tab.$cn = cn;
           let table = databaseTemplate[dc.dbType].isQueryReadOnly(sql)
           if (table) {
@@ -555,7 +555,8 @@ export default {
           }
         }
       } catch (e) {
-        this.sqlRunEnd(tab, e);
+        clearInterval(tab.timeId);
+        this.setSqlErrorResult(tab, e);
       }
     },
     setDuplicateData(data) {
@@ -567,7 +568,6 @@ export default {
       return data;
     },
     sqlRunEnd(tab, e) {
-      console.log(e);
       tab.$cn.close();
       tab.run = false;
       tab.time = ((Date.now() - tab.start) / 1000).toFixed(3);
@@ -577,6 +577,7 @@ export default {
       }
     },
     setSqlErrorResult(tab, e) {
+      console.log(e);
       this.error(e);
       tab.dataType = 0;
       tab.data = e;
