@@ -32,11 +32,11 @@ export default function (template) {
                         for (let column of primaryColumns) {
                             let info = columnInfos[column];
                             primaryColumnData += `${template.symbolLeft}${column}${template.symbolRight}=`;
-                            if (row[column] == null)
+                            if (row[global_constant.hiddenFieldPrefix + column] == null)
                                 primaryColumnData += 'null and ';
                             else if (info.jsType == 'number')
-                                primaryColumnData += `${row[column]} and `
-                            else primaryColumnData += `'${row[column].replaceAll('\'','\\\'')}' and `
+                                primaryColumnData += `${row[global_constant.hiddenFieldPrefix + column]} and `
+                            else primaryColumnData += `'${row[global_constant.hiddenFieldPrefix + column].replaceAll('\'','\\\'')}' and `
                             change = true;
                         }
                         primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);
@@ -63,11 +63,11 @@ export default function (template) {
                     for (let column of primaryColumns) {
                         let info = columnInfos[column];
                         primaryColumnData += `${template.symbolLeft}${column}${template.symbolRight}=`;
-                        if (row[column] == null)
+                        if (row[global_constant.hiddenFieldPrefix + column] == null)
                             primaryColumnData += 'null and ';
                         else if (info.jsType == 'number')
-                            primaryColumnData += `${row[column]} and `
-                        else primaryColumnData += `'${row[column].replaceAll('\'','\\\'')}' and `
+                            primaryColumnData += `${row[global_constant.hiddenFieldPrefix + column]} and `
+                        else primaryColumnData += `'${row[global_constant.hiddenFieldPrefix + column].replaceAll('\'','\\\'')}' and `
                         change = true;
                     }
                     primaryColumnData = primaryColumnData.substring(0, primaryColumnData.length - 5);

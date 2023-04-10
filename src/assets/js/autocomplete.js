@@ -128,7 +128,7 @@ export default async function (editor) {
     let cursor = editor.getCursor();
     let firstContent = '';
     for (let i = 0; i < cursor.line; i++) {
-        let line = editor.getLine(i + 1)
+        let line = editor.getLine(i)
         firstContent += line;
     }
     firstContent += editor.getLine(cursor.line).substring(0, cursor.ch).toLowerCase();
@@ -164,18 +164,17 @@ export default async function (editor) {
             fromAfter = nextToken[0] ? fromAfter.substring(0, nextToken[0].index) : fromAfter;
             tableList = getTableList(fromAfter);
         }
-    } else if (firstKeywords[0]?.value == 'where') {
-        let findToken = indexOfToken(firstContent.substring(0, firstKeywords[0].index), keywordTokens);
-        findToken.sort((a, b) => b.index - a.index);
-        if (findToken[0]?.value == 'from') {
-            let fromAfter = firstContent.substring(findToken[0].index, firstKeywords[0].index);
-            tableList = getTableList(fromAfter);
-        }
-    } else if (firstKeywords[0]?.value == 'from') {
+    }else if (firstKeywords[0]?.value == 'from') {
         let fromAfter = firstContent.substring(firstKeywords[0].index + 4) + lastContent;
         const nextToken = indexOfToken(fromAfter, keywordTokens);
         fromAfter = nextToken[0] ? fromAfter.substring(0, nextToken[0].index) : fromAfter;
         tableList = getTableList(fromAfter);
+    } else {
+        let f = firstKeywords.findIndex(e => e.value == 'from');
+        if (f > 0) {
+            let fromAfter = firstContent.substring(firstKeywords[f].index, firstKeywords[f - 1].index);
+            tableList = getTableList(fromAfter);
+        }
     }
     const p = word.lastIndexOf(".");
     let before = word.substring(0, p == -1 ? word.length : p);
@@ -210,7 +209,7 @@ export default async function (editor) {
                 if (!tables || !tables.length) {
                     tables = [{ items: (await databaseConnecton.getTableList(editor.tab.dbc, item.value.label)).map(e => { return { label: e } }) }];
                 }
-                const child = findTableMatchObj({ ...db, items: tables }, after, false)
+                const child = findTableMatchObj({ db: item.value, items: tables }, after, false)
                 list = list.concat(child.map(e => e.value.label));
             } else if (item.type == 'table') {
                 const key = editor.tab.dcIndex + "&" + item.db.label + "&" + item.value.label;
