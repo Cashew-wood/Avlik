@@ -134,12 +134,18 @@ export default {
             this.tabIndex = this.tabs.length - 1;
         },
         designTable(node) {
+            const tabTitle = node.data.label + ' - ' + this.global.locale.design;
+            const index = this.tabs.findIndex(e => e.name == tabTitle);
+            if (index > -1) {
+                this.tabIndex = index;
+                return;
+            }
             let path = this.getNodeDataPathById(node.data.id).path;
             let dbc = this.dbc[path[0]];
             this.tabs.push({
                 id: Date.now(),
                 type: 2,
-                name: node.data.label,
+                name: tabTitle,
                 subtabs: [],
                 table: node.data.label,
                 dbc,

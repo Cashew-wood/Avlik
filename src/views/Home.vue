@@ -72,10 +72,10 @@
               </div>
               <div v-if="item.type == 1" class="code">
                 <div class="code_tool">
-                  <el-select v-model="item.dcIndex" class="m-2" placeholder="Select">
+                  <el-select v-model="item.dcIndex" class="m-2" placeholder="Select" size="small">
                     <el-option v-for="(item, i) in dbc" :key="item.id" :label="item.label" :value="i" />
                   </el-select>
-                  <el-select v-model="item.dbIndex" class="m-2" placeholder="Select" @change="selectDB(item)">
+                  <el-select v-model="item.dbIndex" class="m-2" placeholder="Select" @change="selectDB(item)" size="small">
                     <el-option v-if="item.dcIndex != null" v-for="(item, i) in dbc[item.dcIndex].items" :key="item.id"
                       :label="item.label" :value="i" />
                   </el-select>
@@ -418,8 +418,12 @@ export default {
       this.$refs.tree.setData(this.dbc);
     },
     async openTable(data, parent) {
+      const index = this.tabs.findIndex(e => e.name == data.label);
+      if (index > -1) {
+        this.tabIndex = index;
+        return;
+      }
       let path = this.getNodeDataPathById(data.id).path;
-      console.log(path);
       this.tabs.push({
         id: Date.now(),
         name: data.label,
@@ -654,7 +658,7 @@ body {
 
   .el-dropdown-link {
     color: var(--el-text-color-primary);
-    padding: 10px;
+    padding: 6px 10px;
 
     &:hover {
       background-color: var(--el-fill-color-darker);
@@ -677,9 +681,13 @@ body {
   }
 
   .icon {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     margin-bottom: 6px;
+  }
+  .name{
+    font-size: 12px;
+    color: var(--el-text-color-primary) !important;
   }
 }
 
@@ -828,7 +836,7 @@ body {
       }
 
       .code_tool {
-        margin-bottom: 10px;
+        margin: 4px 0;
       }
 
 

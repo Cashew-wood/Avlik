@@ -377,6 +377,7 @@ export default {
     .cell {
         padding: 0;
         white-space: nowrap;
+        line-height: 16px;
     }
 
     .el-table__header-wrapper {

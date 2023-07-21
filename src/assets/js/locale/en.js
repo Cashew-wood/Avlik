@@ -101,5 +101,6 @@ export default {
     for_each:'For Each',
     update_of_fields:'Update of Fields',
     copy_data:'Copy Data',
-    paste:'Paste'
+    paste:'Paste',
+    design: 'Design'
 }
