@@ -75,7 +75,8 @@
                   <el-select v-model="item.dcIndex" class="m-2" placeholder="Select" size="small">
                     <el-option v-for="(item, i) in dbc" :key="item.id" :label="item.label" :value="i" />
                   </el-select>
-                  <el-select v-model="item.dbIndex" class="m-2" placeholder="Select" @change="selectDB(item)" size="small">
+                  <el-select v-model="item.dbIndex" class="m-2" placeholder="Select" @change="selectDB(item)"
+                    size="small">
                     <el-option v-if="item.dcIndex != null" v-for="(item, i) in dbc[item.dcIndex].items" :key="item.id"
                       :label="item.label" :value="i" />
                   </el-select>
@@ -290,9 +291,10 @@ export default {
     async init() {
       native.window.show();
 
-      let actualSize = await this.global.device.screenActualSize;
-      native.window.width = parseInt(actualSize.width * 0.75);
-      native.window.height = parseInt(actualSize.height * 0.85);
+      let actualSize = await this.global.device.screenSize;
+      let zoom = await this.global.device.zoom;
+      native.window.width = parseInt(actualSize.width / zoom * 0.75);
+      native.window.height = parseInt(actualSize.height / zoom * 0.85);
       native.window.showCenter();
       native.window.addDragMoveArea(0, 0, 20000, 40);
     },
@@ -685,7 +687,8 @@ body {
     height: 28px;
     margin-bottom: 6px;
   }
-  .name{
+
+  .name {
     font-size: 12px;
     color: var(--el-text-color-primary) !important;
   }

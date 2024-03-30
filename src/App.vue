@@ -38,7 +38,11 @@ export default {
                          if (typeof p != 'string' || p.startsWith('__v')) return;
                          return new Promise((r, s) => {
                               if (target[p]) r(target[p]);
-                              obj[p].then(r);
+                              try {
+                                   obj[p].then(r);
+                              } catch (e) {
+                                   console.log(obj, p)
+                              }
                          })
                     }
                })
@@ -46,6 +50,4 @@ export default {
      }
 }
 </script>
-<style scoped>
-
-</style>
+<style scoped></style>
